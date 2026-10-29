@@ -33,6 +33,7 @@ import { Graphify } from './graphify';
 import { captureUsage } from './usage';
 import type { Job } from '../copilot-worker';
 import { checkHeadroom, headroomUrl } from './headroom';
+import { searchMcpDirectory } from './mcp-directory';
 
 type Host = (type: string, data: unknown) => Promise<unknown>;
 export class Service {
@@ -221,8 +222,25 @@ export class Service {
       }
       case 'savePlan':
         return this.makePlan(c.workspaceId, c.title, c.tasks, c.limits);
+      case 'reviseDraft': {
+        const original = this.store.get<Plan>('plans', c.planId, c.workspaceId);
+        if (original.deleted || original.state !== 'draft' || original.hash !== c.hash)
+          throw new Error('Draft changed. Reopen the latest approval before editing.');
+        if (this.store.list<Run>('runs', c.workspaceId).some((run) => run.planId === original.id))
+          throw new Error('This draft already has a run. Create a new workflow.');
+        const replacement = await this.makePlan(c.workspaceId, c.title, c.tasks, c.limits);
+        const current = this.store.get<Plan>('plans', c.planId, c.workspaceId);
+        if (current.deleted || current.state !== 'draft' || current.hash !== c.hash) {
+          this.store.remove('plans', replacement.id, c.workspaceId);
+          throw new Error('Draft changed during editing. Reopen the latest approval.');
+        }
+        this.store.put('plans', original.id, { ...current, deleted: true }, c.workspaceId);
+        return replacement;
+      }
       case 'approve': {
         const plan = this.store.get<Plan>('plans', c.planId, c.workspaceId);
+        if (plan.deleted) throw new Error('This approval was deleted. Create a new workflow.');
+        if (plan.state !== 'draft') throw new Error('Only a draft can be approved or rejected.');
         if (plan.hash !== c.hash) throw new Error('Plan changed. Review the latest preview.');
         if (c.decision === 'approve') {
           await this.verify(plan);
@@ -233,6 +251,9 @@ export class Service {
           if (!approved) throw new Error('Approval cancelled');
           await this.verify(plan);
         }
+        const current = this.store.get<Plan>('plans', c.planId, c.workspaceId);
+        if (current.deleted || current.state !== 'draft' || current.hash !== c.hash)
+          throw new Error('Draft changed during review. Reopen the latest approval.');
         const approval = {
           id: randomUUID(),
           workspaceId: c.workspaceId,
@@ -254,6 +275,7 @@ export class Service {
       }
       case 'execute': {
         const plan = this.store.get<Plan>('plans', c.planId, c.workspaceId);
+        if (plan.deleted) throw new Error('This approval was deleted. Create a new workflow.');
         if (plan.state !== 'approved') throw new Error('A matching approved plan is required');
         await this.verify(plan);
         const approvals = this.store.list<{ planId: string; hash: string; decision: string }>(
@@ -479,12 +501,32 @@ export class Service {
           throw new Error('Run is no longer active; create a new plan to retry.');
         if (c.action === 'resume')
           await this.verify(this.store.get<Plan>('plans', run.planId, c.workspaceId));
+        if (
+          c.action === 'resume' &&
+          run.state === 'paused' &&
+          run.error?.startsWith('Observed token dispatch limit')
+        ) {
+          const plan = this.store.get<Plan>('plans', run.planId, c.workspaceId);
+          const tokens = this.store
+            .list<Usage>('usage', c.workspaceId)
+            .filter((u) => u.runId === run.id && u.kind === 'delta')
+            .reduce((n, u) => n + (u.input ?? 0) + (u.output ?? 0), 0);
+          if (
+            !(await this.host('confirm', {
+              title: 'Continue past token threshold?',
+              detail: `Run: ${run.id}\nObserved tokens: ${tokens}\nPlanned threshold: ${plan.limits.maxTokens}\nContinuing allows remaining agents to dispatch without this threshold. Copilot usage may increase.`,
+            }))
+          )
+            return;
+          run.tokenLimitApproved = true;
+        }
         this.store.put(
           'runs',
           run.id,
           {
             ...run,
             state: c.action === 'cancel' ? 'cancelled' : c.action === 'pause' ? 'paused' : 'queued',
+            error: c.action === 'resume' ? undefined : run.error,
           },
           c.workspaceId,
         );
@@ -514,6 +556,79 @@ export class Service {
             action: 'cancel',
           });
         return;
+      case 'deleteHistory': {
+        const ws = this.ws(c.workspaceId);
+        if (c.kind === 'run') {
+          const run = this.store.get<Run>('runs', c.recordId, ws.id);
+          if (['queued', 'running', 'paused'].includes(run.state))
+            throw new Error('Wait for this run to finish or cancel it before deleting history.');
+          const attempts = this.store
+            .list<Attempt>('attempts', ws.id)
+            .filter((a) => a.runId === run.id);
+          if (attempts.some((a) => a.diff && !a.integrated))
+            throw new Error('Integrate unreviewed changes before deleting this run history.');
+          if (
+            !(await this.host('confirm', {
+              title: 'Delete run history?',
+              detail: `Run: ${run.id}\nRepository: ${ws.root}\nThis removes attempts, events, and usage. A minimal run identity remains to prevent replay.`,
+            }))
+          )
+            return;
+          this.store.transaction(() => {
+            for (const attempt of attempts) {
+              this.store.db
+                .prepare(
+                  "DELETE FROM events WHERE workspace_id=? AND json_extract(data,'$.attemptId')=?",
+                )
+                .run(ws.id, attempt.id);
+              this.store.remove('attempts', attempt.id, ws.id);
+            }
+            for (const usage of this.store
+              .list<Usage>('usage', ws.id)
+              .filter((u) => u.runId === run.id))
+              this.store.remove('usage', usage.id, ws.id);
+            this.store.put('runs', run.id, { ...run, deleted: true, error: undefined }, ws.id);
+          });
+          return;
+        }
+        if (c.kind === 'plan') {
+          const plan = this.store.get<Plan>('plans', c.recordId, ws.id);
+          const hasRun = this.store.list<Run>('runs', ws.id).some((r) => r.planId === plan.id);
+          if (
+            !(await this.host('confirm', {
+              title: 'Delete approval history?',
+              detail: `Plan: ${plan.title}\nRepository: ${ws.root}\n${hasRun ? 'This removes it from Approvals. The plan and approval record remain for the completed run audit and replay protection.' : 'The plan and its approval records will be removed.'}`,
+            }))
+          )
+            return;
+          if (this.store.list<Run>('runs', ws.id).some((r) => r.planId === plan.id) !== hasRun)
+            throw new Error('Run history changed during review. Try deleting this approval again.');
+          this.store.transaction(() => {
+            if (hasRun) this.store.put('plans', plan.id, { ...plan, deleted: true }, ws.id);
+            else {
+              for (const approval of this.store
+                .list<{ id: string; planId: string }>('approvals', ws.id)
+                .filter((a) => a.planId === plan.id))
+                this.store.remove('approvals', approval.id, ws.id);
+              this.store.remove('plans', plan.id, ws.id);
+            }
+          });
+          return;
+        }
+        const usage = this.store.get<Usage>('usage', c.recordId, ws.id);
+        const run = this.store.get<Run>('runs', usage.runId, ws.id);
+        if (['queued', 'running', 'paused'].includes(run.state))
+          throw new Error('Wait for the run to finish before deleting usage.');
+        if (
+          !(await this.host('confirm', {
+            title: 'Delete usage observation?',
+            detail: `Run: ${run.id}\nTask: ${usage.taskId}\nThis removes the selected usage row and changes displayed totals.`,
+          }))
+        )
+          return;
+        this.store.remove('usage', usage.id, ws.id);
+        return;
+      }
       case 'integrate':
         return this.integrate(c.workspaceId, c.attemptId);
       case 'saveMcp': {
@@ -562,6 +677,8 @@ export class Service {
         this.invalidate(c.workspaceId);
         return server;
       }
+      case 'searchMcpDirectory':
+        return searchMcpDirectory(c.query, c.cursor);
       case 'mcpAction':
         return this.mcpAction(c.workspaceId, c.serverId, c.action);
       case 'addContext': {
@@ -858,19 +975,22 @@ export class Service {
     }
     // Drafts may be saved with local edits, but worktrees execute the committed base.
     // Keep a blocked draft reviewable so stashing edits does not discard its scope.
-    if (
-      await git(this.ws(plan.workspaceId).root, [
-        'status',
-        '--porcelain',
-        '--untracked-files=normal',
-        '--',
-        '.',
-        ':(exclude)graphify-out',
-      ])
-    )
+    const root = this.ws(plan.workspaceId).root;
+    const changes = await git(root, [
+      'status',
+      '--porcelain',
+      '--untracked-files=normal',
+      '--',
+      '.',
+      ':(exclude)graphify-out',
+    ]);
+    if (changes) {
+      const files = changes.split(/\r?\n/).filter(Boolean);
+      const sample = files.slice(0, 5).map((line) => line.trim());
       throw new Error(
-        'Draft saved. Commit or stash repository changes before approving or executing it. Graphify output is excluded. If you commit changes, create a fresh draft to capture the new base.',
+        `Draft saved. Approval needs a clean repository at ${root}. Uncommitted files: ${sample.join(', ')}${files.length > sample.length ? `, and ${files.length - sample.length} more` : ''}. Commit or stash these changes before approving or executing. If you commit, create a fresh draft to capture the new base. Graphify output is excluded.`,
       );
+    }
   }
   private newAttempt(run: Run, task: Plan['tasks'][number]): Attempt {
     return {
@@ -951,7 +1071,7 @@ export class Service {
             .list<Usage>('usage', ws.id)
             .filter((u) => u.runId === run.id && u.kind === 'delta')
             .reduce((n, u) => n + (u.input ?? 0) + (u.output ?? 0), 0);
-          if (tokens >= plan.limits.maxTokens) {
+          if (tokens >= plan.limits.maxTokens && !run.tokenLimitApproved) {
             this.store.put(
               'runs',
               run.id,
@@ -1213,6 +1333,54 @@ export class Service {
   private async mcpAction(workspaceId: string, id: string, action: string) {
     const ws = this.ws(workspaceId),
       server = this.store.get<Mcp>('mcp', id, workspaceId);
+    if (action === 'enable') {
+      if (server.enabled) return server;
+      if (['bearer', 'api-key'].includes(server.auth) && !server.secretRef)
+        throw new Error('Add the connection secret before enabling it.');
+      server.enabled = true;
+      server.state = 'configured';
+      server.version++;
+      this.store.put('mcp', id, { ...server, workspaceId }, workspaceId);
+      this.invalidate(workspaceId);
+      return server;
+    }
+    if (action === 'delete') {
+      if (
+        this.store
+          .list<Run>('runs', workspaceId)
+          .some((r) => ['queued', 'running', 'paused'].includes(r.state))
+      )
+        throw new Error('Wait for workspace runs to finish before removing a connection.');
+      const bound = this.store.list<Agent>('agents').filter((agent) => agent.mcpIds.includes(id));
+      if (
+        !(await this.host('confirm', {
+          title: 'Remove MCP connection?',
+          detail: `Connection: ${server.name}\nRepository: ${ws.root}\nThis removes the saved connection and its app secret, and unbinds it from ${bound.length} custom agent(s). Existing workflow approvals become stale.`,
+        }))
+      )
+        return;
+      if (
+        this.store
+          .list<Run>('runs', workspaceId)
+          .some((r) => ['queued', 'running', 'paused'].includes(r.state))
+      )
+        throw new Error(
+          'A workspace run started during review. Remove the connection after it ends.',
+        );
+      this.store.transaction(() => {
+        for (const agent of bound)
+          this.store.put('agents', agent.id, {
+            ...agent,
+            mcpIds: agent.mcpIds.filter((value) => value !== id),
+            version: agent.version + 1,
+          });
+        if (server.secretRef) this.store.remove('secrets', server.secretRef, workspaceId);
+        this.store.remove('mcp', id, workspaceId);
+      });
+      for (const workspace of this.store.list<Workspace>('workspaces'))
+        this.invalidate(workspace.id);
+      return;
+    }
     if (action === 'disconnect' || action === 'clear') {
       server.enabled = false;
       server.state = 'stopped';
@@ -1257,12 +1425,25 @@ export class Service {
           );
         }
       server.state = 'stopped';
+      const observed = result as { tools?: { tools?: unknown[] } };
+      server.lastProbe = {
+        status: 'connected',
+        checkedAt: new Date().toISOString(),
+        toolCount: Array.isArray(observed.tools?.tools) ? observed.tools.tools.length : undefined,
+      };
       server.diagnostic =
         JSON.stringify(result, null, 2) +
         '\nProbe session closed. Connections start again for approved attempts.';
     } catch (e) {
       server.state = 'failed';
+      server.lastProbe = { status: 'failed', checkedAt: new Date().toISOString() };
       server.diagnostic = (e as Error).message;
+      if (
+        server.auth === 'oauth' &&
+        server.endpoint.replace(/\/$/, '') === 'https://mcp.figma.com/mcp'
+      )
+        server.diagnostic +=
+          "\nFigma limits its remote MCP server to supported clients. If browser consent succeeds but this app cannot reuse the grant, use a client in Figma's MCP catalog or configure the Figma desktop server at http://127.0.0.1:3845/mcp with HTTP and no OAuth. The desktop server requires Figma desktop and an eligible seat.";
     }
     this.store.put('mcp', id, { ...server, workspaceId }, workspaceId);
     return server;

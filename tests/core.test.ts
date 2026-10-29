@@ -10,7 +10,7 @@ import { captureUsage, usageTotal } from '../electron/core/usage';
 import { Graphify } from '../electron/core/graphify';
 import { git, worktree, snapshotChanges } from '../electron/core/git';
 import { Service } from '../electron/core/service';
-import type { Agent, Attempt, Plan, Run, Task, Workspace } from '../src/shared';
+import type { Agent, Attempt, Mcp, Plan, Run, Task, Usage, Workspace } from '../src/shared';
 
 const temp = () => mkdtemp(join(tmpdir(), 'agentic-test-'));
 const task = (id: string, dependsOn: string[] = []): Task => ({
@@ -430,6 +430,357 @@ test('saving MCP does not execute a process; bindings cannot cross workspace bou
         limits,
       }),
       /not found/,
+    );
+  } finally {
+    await service.command({ type: 'shutdown' });
+    service.store.close();
+  }
+});
+
+test('MCP test records verified availability after its connection closes', async () => {
+  const service = new Service(
+    await temp(),
+    () => {},
+    async () => true,
+    async () => ({
+      servers: { servers: [{ name: 'clickup', status: 'connected' }] },
+      tools: { tools: [{ name: 'get_task' }, { name: 'list_tasks' }] },
+    }),
+  );
+  try {
+    const workspace = (await service.command({
+      type: 'addWorkspace',
+      path: await repo(),
+    })) as Workspace;
+    await service.graphify.ensure(workspace.id, workspace.root);
+    const connection = (await service.command({
+      type: 'saveMcp',
+      workspaceId: workspace.id,
+      server: {
+        name: 'clickup',
+        transport: 'http',
+        endpoint: 'https://mcp.clickup.com/mcp',
+        args: [],
+        tools: ['get_task'],
+        auth: 'oauth',
+        secretName: 'Authorization',
+        enabled: true,
+      },
+    })) as Mcp;
+    await service.command({
+      type: 'mcpAction',
+      workspaceId: workspace.id,
+      serverId: connection.id,
+      action: 'test',
+    });
+    const observed = service.store.get<Mcp>('mcp', connection.id, workspace.id);
+    assert.equal(observed.state, 'stopped');
+    assert.equal(observed.lastProbe?.status, 'connected');
+    assert.equal(observed.lastProbe?.toolCount, 2);
+    assert.ok(observed.lastProbe?.checkedAt);
+  } finally {
+    await service.command({ type: 'shutdown' });
+    service.store.close();
+  }
+});
+
+test('Figma remote OAuth failure explains supported-client and desktop options', async () => {
+  const service = new Service(
+    await temp(),
+    () => {},
+    async () => true,
+    async () => {
+      throw new Error('MCP server "figma" still requires authentication');
+    },
+  );
+  try {
+    const ws = (await service.command({ type: 'addWorkspace', path: await repo() })) as Workspace;
+    await service.graphify.ensure(ws.id, ws.root);
+    const connection = (await service.command({
+      type: 'saveMcp',
+      workspaceId: ws.id,
+      server: {
+        name: 'figma',
+        transport: 'http',
+        endpoint: 'https://mcp.figma.com/mcp',
+        args: [],
+        tools: [],
+        auth: 'oauth',
+        secretName: 'Authorization',
+        enabled: false,
+      },
+    })) as Mcp;
+    await service.command({
+      type: 'mcpAction',
+      workspaceId: ws.id,
+      serverId: connection.id,
+      action: 'authenticate',
+    });
+    const observed = service.store.get<Mcp>('mcp', connection.id, ws.id);
+    assert.equal(observed.state, 'failed');
+    assert.match(observed.diagnostic ?? '', /supported clients/);
+    assert.match(observed.diagnostic ?? '', /127\.0\.0\.1:3845\/mcp/);
+  } finally {
+    await service.command({ type: 'shutdown' });
+    service.store.close();
+  }
+});
+
+test('disabled MCP can be enabled and removed with agent bindings cleared', async () => {
+  const service = new Service(
+    await temp(),
+    () => {},
+    async () => true,
+  );
+  try {
+    const ws = (await service.command({ type: 'addWorkspace', path: await repo() })) as Workspace;
+    await service.graphify.ensure(ws.id, ws.root);
+    const connection = (await service.command({
+      type: 'saveMcp',
+      workspaceId: ws.id,
+      server: {
+        name: 'fixture',
+        transport: 'stdio',
+        endpoint: 'node',
+        args: [],
+        tools: [],
+        auth: 'none',
+        secretName: 'TOKEN',
+        enabled: true,
+      },
+    })) as Mcp;
+    await service.command({
+      type: 'saveAgent',
+      agent: { ...custom, id: undefined, mcpIds: [connection.id] },
+    });
+    await service.command({
+      type: 'mcpAction',
+      workspaceId: ws.id,
+      serverId: connection.id,
+      action: 'disconnect',
+    });
+    assert.equal(service.store.get<Mcp>('mcp', connection.id, ws.id).enabled, false);
+    await service.command({
+      type: 'mcpAction',
+      workspaceId: ws.id,
+      serverId: connection.id,
+      action: 'enable',
+    });
+    assert.equal(service.store.get<Mcp>('mcp', connection.id, ws.id).enabled, true);
+    await service.command({
+      type: 'mcpAction',
+      workspaceId: ws.id,
+      serverId: connection.id,
+      action: 'delete',
+    });
+    assert.equal(service.store.list<Mcp>('mcp', ws.id).length, 0);
+    assert.deepEqual(service.store.list<Agent>('agents')[0].mcpIds, []);
+  } finally {
+    await service.command({ type: 'shutdown' });
+    service.store.close();
+  }
+});
+
+test('token threshold pauses once and requires explicit native continuation', async () => {
+  const confirms: string[] = [];
+  const service = new Service(
+    await temp(),
+    () => {},
+    async (action, value) => {
+      if (action === 'confirm') confirms.push((value as { title: string }).title);
+      return true;
+    },
+  );
+  try {
+    service.runtime = { state: 'connected', models: [{ id: 'model-a', name: 'A' }] };
+    await service.command({ type: 'saveAgent', agent: { ...custom, id: undefined } });
+    const ws = (await service.command({ type: 'addWorkspace', path: await repo() })) as Workspace;
+    await service.graphify.ensure(ws.id, ws.root);
+    const plan = (await service.command({
+      type: 'savePlan',
+      workspaceId: ws.id,
+      title: 'Threshold',
+      tasks: [task('a')],
+      limits: { ...limits, maxTokens: 1 },
+    })) as Plan;
+    await service.command({
+      type: 'approve',
+      workspaceId: ws.id,
+      planId: plan.id,
+      hash: plan.hash,
+      decision: 'approve',
+    });
+    const run = (await service.command({
+      type: 'execute',
+      workspaceId: ws.id,
+      planId: plan.id,
+    })) as Run;
+    const usage: Usage = {
+      id: 'threshold-usage',
+      workspaceId: ws.id,
+      runId: run.id,
+      attemptId: `${run.id}:a`,
+      taskId: 'a',
+      agentId: 'custom-dev',
+      sessionId: 'fixture',
+      model: 'model-a',
+      input: 2,
+      output: 0,
+      reasoning: null,
+      cacheRead: null,
+      cacheWrite: null,
+      timestamp: new Date().toISOString(),
+      kind: 'delta',
+      coverage: 'observed',
+    };
+    service.store.put('usage', usage.id, usage, ws.id);
+    await service.tick();
+    assert.equal(service.store.get<Run>('runs', run.id, ws.id).state, 'paused');
+    await service.command({ type: 'control', workspaceId: ws.id, runId: run.id, action: 'resume' });
+    assert.equal(service.store.get<Run>('runs', run.id, ws.id).tokenLimitApproved, true);
+    assert.equal(service.store.get<Run>('runs', run.id, ws.id).state, 'queued');
+    assert.ok(confirms.includes('Continue past token threshold?'));
+  } finally {
+    await service.command({ type: 'shutdown' });
+    service.store.close();
+  }
+});
+
+test('editing approval steps creates a fresh draft and retires the old hash', async () => {
+  const service = new Service(
+    await temp(),
+    () => {},
+    async () => true,
+  );
+  try {
+    service.runtime = { state: 'connected', models: [{ id: 'model-a', name: 'A' }] };
+    await service.command({ type: 'saveAgent', agent: { ...custom, id: undefined } });
+    await service.command({
+      type: 'saveAgent',
+      agent: { ...custom, id: undefined, name: 'Reviewer', role: 'reviewer' },
+    });
+    const ws = (await service.command({ type: 'addWorkspace', path: await repo() })) as Workspace;
+    await service.graphify.ensure(ws.id, ws.root);
+    const original = (await service.command({
+      type: 'savePlan',
+      workspaceId: ws.id,
+      title: 'Original',
+      tasks: [task('build')],
+      limits,
+    })) as Plan;
+    const revised = (await service.command({
+      type: 'reviseDraft',
+      workspaceId: ws.id,
+      planId: original.id,
+      hash: original.hash,
+      title: 'Revised',
+      tasks: [
+        { ...task('review'), title: 'Review first', role: 'reviewer', source: 'custom' },
+        { ...task('build', ['review']), title: 'Build second', source: 'custom' },
+      ],
+      limits,
+    })) as Plan;
+    assert.notEqual(revised.id, original.id);
+    assert.notEqual(revised.hash, original.hash);
+    assert.deepEqual(
+      revised.tasks.map((step) => step.agent.name),
+      ['Reviewer', 'Developer'],
+    );
+    assert.deepEqual(revised.tasks[1].dependsOn, ['review']);
+    assert.equal(service.store.get<Plan>('plans', original.id, ws.id).deleted, true);
+    await assert.rejects(
+      service.command({
+        type: 'approve',
+        workspaceId: ws.id,
+        planId: original.id,
+        hash: original.hash,
+        decision: 'approve',
+      }),
+      /deleted/,
+    );
+    await service.command({
+      type: 'approve',
+      workspaceId: ws.id,
+      planId: revised.id,
+      hash: revised.hash,
+      decision: 'approve',
+    });
+    assert.equal(service.store.get<Plan>('plans', revised.id, ws.id).state, 'approved');
+  } finally {
+    await service.command({ type: 'shutdown' });
+    service.store.close();
+  }
+});
+
+test('history deletion removes detail while keeping replay-blocking run identity', async () => {
+  const service = new Service(
+    await temp(),
+    () => {},
+    async () => true,
+  );
+  try {
+    const ws = (await service.command({ type: 'addWorkspace', path: await repo() })) as Workspace;
+    await service.graphify.ensure(ws.id, ws.root);
+    const plan = {
+      id: 'history-plan',
+      workspaceId: ws.id,
+      title: 'Previous approval',
+      state: 'approved',
+    } as Plan;
+    const run = {
+      id: 'history-run',
+      workspaceId: ws.id,
+      planId: plan.id,
+      state: 'succeeded',
+      mode: 'execute',
+      createdAt: new Date().toISOString(),
+    } as Run;
+    service.store.put('plans', plan.id, plan, ws.id);
+    service.store.put('runs', run.id, run, ws.id);
+    service.store.put(
+      'attempts',
+      'history-attempt',
+      {
+        id: 'history-attempt',
+        workspaceId: ws.id,
+        runId: run.id,
+        state: 'succeeded',
+        integrated: true,
+      },
+      ws.id,
+    );
+    service.store.put(
+      'events',
+      'history-event',
+      { attemptId: 'history-attempt', text: 'detail' },
+      ws.id,
+    );
+    service.store.put(
+      'usage',
+      'history-usage',
+      { id: 'history-usage', workspaceId: ws.id, runId: run.id, taskId: 'task', kind: 'delta' },
+      ws.id,
+    );
+    await service.command({
+      type: 'deleteHistory',
+      workspaceId: ws.id,
+      kind: 'run',
+      recordId: run.id,
+    });
+    assert.equal(service.store.get<Run>('runs', run.id, ws.id).deleted, true);
+    assert.equal(service.store.list('attempts', ws.id).length, 0);
+    assert.equal(service.store.list('events', ws.id).length, 0);
+    assert.equal(service.store.list('usage', ws.id).length, 0);
+    await service.command({
+      type: 'deleteHistory',
+      workspaceId: ws.id,
+      kind: 'plan',
+      recordId: plan.id,
+    });
+    assert.equal(service.store.get<Plan>('plans', plan.id, ws.id).deleted, true);
+    await assert.rejects(
+      service.command({ type: 'execute', workspaceId: ws.id, planId: plan.id }),
+      /deleted/,
     );
   } finally {
     await service.command({ type: 'shutdown' });

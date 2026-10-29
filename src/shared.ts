@@ -57,7 +57,18 @@ export type Mcp = z.infer<typeof mcpSchema> & {
   secretRef?: string;
   state: string;
   diagnostic?: string;
+  lastProbe?: { status: 'connected' | 'failed'; checkedAt: string; toolCount?: number };
 };
+export type McpDirectoryEntry = {
+  name: string;
+  title: string;
+  description: string;
+  version: string;
+  status: 'active' | 'deprecated';
+  remote?: { transport: 'http' | 'sse'; endpoint: string };
+  hasPackage: boolean;
+};
+export type McpDirectoryResult = { entries: McpDirectoryEntry[]; nextCursor?: string };
 export type ResolvedAgent = Agent & {
   source: 'repository' | 'custom';
   sourcePath: string;
@@ -100,6 +111,7 @@ export type Plan = {
   hash: string;
   state: 'draft' | 'approved' | 'rejected' | 'stale';
   createdAt: string;
+  deleted?: boolean;
 };
 export type Run = {
   purpose?: 'summary';
@@ -110,6 +122,8 @@ export type Run = {
   mode: 'plan' | 'execute';
   createdAt: string;
   error?: string;
+  tokenLimitApproved?: boolean;
+  deleted?: boolean;
 };
 export type Attempt = {
   id: string;
@@ -201,6 +215,15 @@ export const commandSchema = z.discriminatedUnion('type', [
     limits: limitsSchema,
   }),
   z.object({
+    type: z.literal('reviseDraft'),
+    workspaceId: id,
+    planId: id,
+    hash: id,
+    title: z.string().min(1).max(200),
+    tasks: z.array(taskSchema).min(1).max(50),
+    limits: limitsSchema,
+  }),
+  z.object({
     type: z.literal('approve'),
     workspaceId: id,
     planId: id,
@@ -221,6 +244,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     action: z.enum(['pause', 'resume', 'cancel']),
   }),
   z.object({ type: z.literal('stopAll') }),
+  z.object({
+    type: z.literal('deleteHistory'),
+    workspaceId: id,
+    kind: z.enum(['run', 'plan', 'usage']),
+    recordId: id,
+  }),
   z.object({ type: z.literal('summarizeContext'), workspaceId: id }),
   z.object({ type: z.literal('draftFromPlanning'), workspaceId: id, attemptId: id }),
   z.object({ type: z.literal('storage') }),
@@ -233,10 +262,15 @@ export const commandSchema = z.discriminatedUnion('type', [
     secret: z.string().max(10000).optional(),
   }),
   z.object({
+    type: z.literal('searchMcpDirectory'),
+    query: z.string().max(100),
+    cursor: z.string().max(500).optional(),
+  }),
+  z.object({
     type: z.literal('mcpAction'),
     workspaceId: id,
     serverId: id,
-    action: z.enum(['test', 'authenticate', 'disconnect', 'clear']),
+    action: z.enum(['test', 'authenticate', 'disconnect', 'clear', 'enable', 'delete']),
   }),
   z.object({
     type: z.literal('addContext'),

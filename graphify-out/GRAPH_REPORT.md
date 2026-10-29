@@ -4,12 +4,12 @@
 - cluster-only mode — file stats not available
 
 ## Summary
-- 307 nodes · 693 edges · 14 communities (12 shown, 2 thin omitted)
+- 307 nodes · 696 edges · 14 communities (12 shown, 2 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 3 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `1b55937f`
+- Built from commit: `4a40bf75`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -119,7 +119,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **What connects `singleQuote`, `trailingComma`, `printWidth` to the rest of the system?**
   _108 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
-  _Cohesion score 0.10188261351052048 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.10299003322259136 - nodes in this community are weakly interconnected._
 - **Why does `@github/copilot-sdk` connect `Community 1` to `Community 0`, `Community 2`?**
   _High betweenness centrality (0.092) - this node is a cross-community bridge._
 - **Should `Community 1` be split into smaller, more focused modules?**

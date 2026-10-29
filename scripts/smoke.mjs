@@ -19,7 +19,9 @@ try {
   const page = await app.firstWindow();
   page.setDefaultTimeout(15000);
   page.on('pageerror', (error) => console.error('Renderer:', error.message));
-  await page.getByText('A clear view of the work.').waitFor();
+  await page.getByRole('heading', { name: 'Get your agents working' }).waitFor();
+  await page.getByRole('heading', { name: 'Add a Git repository' }).waitFor();
+  await page.getByRole('button', { name: 'Add repository', exact: true }).waitFor();
   assert.equal(await page.evaluate(() => typeof window.require), 'undefined');
   const snapshot = await page.evaluate(() => window.desktop.request({ type: 'snapshot' }));
   assert.deepEqual(snapshot.workspaces, []);

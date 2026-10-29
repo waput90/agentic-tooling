@@ -212,6 +212,97 @@ select option {
 .badge.bad {
   color: #f49f9f;
 }
+.guide-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.guide-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 13px;
+}
+.guide-step .accent {
+  min-width: 32px;
+}
+.run-board {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: stretch;
+}
+.run-board-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 190px;
+  flex: 1 1 190px;
+}
+.run-board.parallel .run-board-entry {
+  flex: 1 1 220px;
+}
+.run-link {
+  color: var(--accent);
+  font-size: 22px;
+}
+.agent-node {
+  width: 100%;
+  min-height: 110px;
+  padding: 14px;
+  color: inherit;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+  cursor: pointer;
+}
+.agent-node:hover:not(:disabled),
+.agent-node:focus-visible {
+  border-color: var(--accent);
+}
+.agent-node:disabled {
+  cursor: default;
+}
+.agent-node.working {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent);
+  animation: agent-working 2s ease-in-out infinite;
+}
+.agent-activity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.agent-status-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 20px;
+}
+.agent-status-icon.running {
+  animation: agent-spin 2s linear infinite;
+}
+@keyframes agent-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes agent-working {
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+}
 .metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -436,6 +527,9 @@ details > summary {
   }
   .metrics {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .guide-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -5,6 +5,8 @@ import type {
   Command,
   ContextItem,
   Mcp,
+  McpDirectoryEntry,
+  McpDirectoryResult,
   Plan,
   Snapshot,
   Task,
@@ -24,6 +26,17 @@ const pages = [
   'Settings',
 ] as const;
 type Page = (typeof pages)[number];
+const pageDescriptions: Record<Page, string> = {
+  Overview: 'Choose a repository, ask a question, choose agents, and review their work.',
+  Agents: 'Create reusable agents. Workflows assign tasks to them by role.',
+  Workflows: 'Ask one question, choose agents, and decide whether they work in order or together.',
+  Approvals: 'Review the exact tasks, tools, and repository before work begins.',
+  Runs: 'See each agent’s result and review changes before integrating them.',
+  Usage: 'Review reported model usage for your workspaces.',
+  Context: 'Keep decisions and handoffs available to future tasks in this repository.',
+  Connections: 'Test external tools, then enable and bind only the tools an agent needs.',
+  Settings: 'Manage your Copilot sign-in and desktop preferences.',
+};
 const icons = ['◫', '♧', '⑂', '◇', '▷', '▥', '▤', '⌘', '⚙'];
 const count = (n: number | null | undefined) =>
   n == null ? '—' : new Intl.NumberFormat().format(n);
@@ -32,7 +45,7 @@ function Badge({ children }: { children: ReactNode }) {
   const s = String(children);
   return (
     <span
-      className={`badge ${['approved', 'ready', 'connected', 'succeeded', 'Repository'].includes(s) ? 'good' : ['failed', 'stale', 'cancelled'].includes(s) ? 'bad' : ['queued', 'draft', 'paused', 'interrupted', 'partial', 'needs-auth'].includes(s) ? 'warn' : ''}`}
+      className={`badge ${['approved', 'ready', 'connected', 'succeeded', 'verified', 'Repository'].includes(s) ? 'good' : ['failed', 'stale', 'cancelled'].includes(s) ? 'bad' : ['queued', 'draft', 'paused', 'interrupted', 'partial', 'needs-auth'].includes(s) ? 'warn' : ''}`}
     >
       {children}
     </span>
@@ -61,6 +74,7 @@ function Button({
 }) {
   return (
     <button
+      type="button"
       className={`btn ${primary ? 'primary' : ''} ${danger ? 'danger' : ''}`}
       onClick={onClick}
       disabled={disabled}
@@ -77,6 +91,115 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     </label>
   );
 }
+const pageSize = 10;
+function Pagination({
+  total,
+  page,
+  setPage,
+}: {
+  total: number;
+  page: number;
+  setPage: (page: number) => void;
+}) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  if (pages === 1) return null;
+  return (
+    <div className="toolbar justify-between items-center">
+      <Button disabled={page <= 0} onClick={() => setPage(page - 1)}>
+        Previous
+      </Button>
+      <span className="text-xs muted">
+        Page {page + 1} of {pages} · {total} items
+      </span>
+      <Button disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>
+        Next
+      </Button>
+    </div>
+  );
+}
+function RunBoard({
+  run,
+  plan,
+  attempts,
+  onSelect,
+}: {
+  run: Snapshot['runs'][number];
+  plan?: Plan;
+  attempts: Attempt[];
+  onSelect: (attempt: Attempt) => void;
+}) {
+  if (!plan) return null;
+  const sequential =
+    plan.limits.concurrency === 1 || plan.tasks.some((task) => task.dependsOn.length > 0);
+  return (
+    <div className="mt-4">
+      <div className="text-xs muted mb-3">
+        {plan.tasks.length === 1
+          ? 'Agent task · select the card to view details'
+          : sequential
+            ? 'Sequential handoff · arrows show dependencies'
+            : 'Parallel agents · tasks can run together'}
+      </div>
+      <div className={`run-board ${sequential ? 'sequential' : 'parallel'}`}>
+        {plan.tasks.map((task, index) => {
+          const attempt = attempts.find((item) => item.runId === run.id && item.taskId === task.id);
+          const state = attempt?.state ?? 'queued';
+          const activity =
+            state === 'running'
+              ? 'Working on this step'
+              : state === 'queued'
+                ? 'Waiting for its turn'
+                : state === 'succeeded'
+                  ? 'Step complete'
+                  : state === 'failed'
+                    ? 'Needs review'
+                    : state === 'blocked'
+                      ? 'Waiting on a failed step'
+                      : state;
+          return (
+            <div className="run-board-entry" key={task.id}>
+              {sequential && index > 0 && task.dependsOn.includes(plan.tasks[index - 1].id) && (
+                <span className="run-link" aria-hidden="true">
+                  →
+                </span>
+              )}
+              <button
+                className={`agent-node ${attempt?.state === 'running' ? 'working' : ''}`}
+                disabled={!attempt}
+                onClick={() => attempt && onSelect(attempt)}
+                aria-label={`Open ${task.agent.name} task details`}
+              >
+                <div className="flex justify-between gap-3">
+                  <strong>{task.agent.name}</strong>
+                  <Badge>{state}</Badge>
+                </div>
+                <div className="agent-activity mt-3">
+                  <span className={`agent-status-icon ${state}`} aria-hidden="true">
+                    {state === 'running'
+                      ? '⚙'
+                      : state === 'succeeded'
+                        ? '✓'
+                        : state === 'failed' || state === 'blocked'
+                          ? '!'
+                          : '◷'}
+                  </span>
+                  <span>{activity}</span>
+                </div>
+                <div className="text-xs muted mt-2">Task: {task.title}</div>
+                <div className="text-xs muted mt-2">
+                  Model: {attempt?.reportedModel ?? attempt?.requestedModel ?? task.agent.model}
+                </div>
+                {task.dependsOn.length > 0 && (
+                  <div className="text-xs muted mt-2">After: {task.dependsOn.join(', ')}</div>
+                )}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function App() {
   const [data, setData] = useState<Snapshot>(),
@@ -84,7 +207,9 @@ export function App() {
     [selected, setSelected] = useState('all'),
     [toast, setToast] = useState(''),
     [busy, setBusy] = useState(false),
-    [detail, setDetail] = useState<Attempt>();
+    [detail, setDetail] = useState<Attempt>(),
+    [approvalPage, setApprovalPage] = useState(0),
+    [runPage, setRunPage] = useState(0);
   const refresh = useCallback(async () => {
     if (!window.desktop) return;
     try {
@@ -165,14 +290,16 @@ export function App() {
   const scope = <T extends { workspaceId: string }>(rows: T[]) =>
     selected === 'all' ? rows : rows.filter((r) => r.workspaceId === selected);
   const attempts = scope(data.attempts),
-    runs = scope(data.runs),
-    plans = scope(data.plans).filter((p) => !p.id.startsWith('planning:')),
+    runs = scope(data.runs).filter((r) => !r.deleted),
+    plans = scope(data.plans).filter((p) => !p.deleted && !p.id.startsWith('planning:')),
     usage = scope(data.usage).filter((u) => u.kind === 'delta');
   const running = attempts.filter((a) => a.state === 'running').length,
     queued = attempts.filter((a) => a.state === 'queued').length;
   const tokens = usage.some((u) => u.input !== null || u.output !== null)
     ? usage.reduce((n, u) => n + (u.input ?? 0) + (u.output ?? 0), 0)
     : null;
+  const approvalIndex = Math.min(approvalPage, Math.max(0, Math.ceil(plans.length / pageSize) - 1));
+  const runIndex = Math.min(runPage, Math.max(0, Math.ceil(runs.length / pageSize) - 1));
   const select = (id: string) => {
     setSelected(id);
     void send({ type: 'settings', ...data.settings, selectedWorkspace: id });
@@ -181,6 +308,58 @@ export function App() {
         .request({ type: 'graphify', workspaceId: id, rebuild: false })
         .then(refresh);
   };
+  const nextStep: { title: string; detail: string; label?: string; onClick?: () => void } = !data
+    .workspaces.length
+    ? {
+        title: 'Add a Git repository',
+        detail: 'Choose the project your agents will work on. It needs at least one commit.',
+        label: 'Add repository',
+        onClick: () => void add(),
+      }
+    : !ws
+      ? {
+          title: 'Choose a repository',
+          detail: 'Select the project you want to work on from the workspace list on the left.',
+          ...(data.workspaces.length === 1
+            ? { label: 'Open repository', onClick: () => select(data.workspaces[0].id) }
+            : {}),
+        }
+      : data.runtime.state !== 'connected'
+        ? {
+            title: 'Connect GitHub Copilot',
+            detail: 'Sign in and check your available models before starting an agent.',
+            label: 'Open settings',
+            onClick: () => setPage('Settings'),
+          }
+        : plans.some((plan) => plan.state === 'draft')
+          ? {
+              title: 'Review your workflow draft',
+              detail: 'Check the selected agents and task order, then approve the exact scope.',
+              label: 'Review draft',
+              onClick: () => setPage('Approvals'),
+            }
+          : plans.some(
+                (plan) => plan.state === 'approved' && !runs.some((run) => run.planId === plan.id),
+              )
+            ? {
+                title: 'Start your approved workflow',
+                detail: 'Your approval is recorded. Start the run from the review page.',
+                label: 'Open approved workflow',
+                onClick: () => setPage('Approvals'),
+              }
+            : {
+                title: 'Ask agents to work on a task',
+                detail:
+                  'Enter one question, choose who works on it, and pick sequential or parallel.',
+                label: 'Ask agents',
+                onClick: () => setPage('Workflows'),
+              };
+  const guideSteps = [
+    { label: 'Choose repository', done: Boolean(ws) },
+    { label: 'Connect Copilot', done: data.runtime.state === 'connected' },
+    { label: 'Create workflow', done: plans.length > 0 },
+    { label: 'Approve and run', done: runs.some((run) => run.mode === 'execute') },
+  ];
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -283,150 +462,189 @@ export function App() {
             <div className="eyebrow mb-2">
               {ws ? 'Repository workspace' : 'Workspace command center'}
             </div>
-            <h1>{page === 'Overview' ? 'A clear view of the work.' : page}</h1>
-            <p className="muted text-sm m-0">
-              {page === 'Overview'
-                ? 'Plan deliberately. Run independently. Review every result.'
-                : (ws?.root ?? 'Across all of your local repositories.')}
-            </p>
+            <h1>{page === 'Overview' ? 'Get your agents working' : page}</h1>
+            <p className="muted text-sm m-0">{pageDescriptions[page]}</p>
+            {page !== 'Overview' && ws && (
+              <p className="muted text-xs mt-2 break-all">Repository: {ws.root}</p>
+            )}
           </div>
-          {page === 'Overview' && (
+          {page === 'Overview' && data.workspaces.length > 0 && (
             <Button primary onClick={() => void add()}>
               ＋ Add repository
             </Button>
           )}
         </div>
+        {runs.some(
+          (run) => run.state === 'paused' && run.error?.startsWith('Observed token dispatch limit'),
+        ) && (
+          <div className="notice mb-4" role="alert">
+            <div className="flex justify-between items-center gap-3">
+              <span>
+                An agent run reached its observed token threshold and is waiting for your decision.
+              </span>
+              <Button onClick={() => setPage('Runs')}>Review and continue</Button>
+            </div>
+          </div>
+        )}
         {page === 'Overview' && (
           <>
-            <div className="metrics">
-              {[
-                ['Active agents', running, 'Across independent sessions'],
-                [
-                  'Waiting for approval',
-                  plans.filter((p) => p.state === 'draft').length,
-                  'Execution stays blocked',
-                ],
-                ['Observed tokens', count(tokens), 'Reported input + output only'],
-                [
-                  'Repository workspaces',
-                  ws ? 1 : data.workspaces.length,
-                  'Separate context and history',
-                ],
-              ].map(([label, value, sub]) => (
-                <div className="panel metric" key={label}>
-                  <div className="eyebrow">{label}</div>
-                  <strong>{value}</strong>
-                  <div className="text-xs muted">{sub}</div>
+            <section className="panel mb-4">
+              <div className="flex justify-between items-start gap-5">
+                <div>
+                  <div className="eyebrow mb-2">Your next step</div>
+                  <h2>{nextStep.title}</h2>
+                  <p className="text-sm muted mt-2">{nextStep.detail}</p>
                 </div>
-              ))}
-            </div>
-            <div className="grid-main">
-              <div className="stack">
-                <section className="panel">
-                  <div className="flex justify-between items-center">
-                    <h2>Execution activity</h2>
-                    <Badge>{running ? 'running' : 'idle'}</Badge>
+                {nextStep.onClick && nextStep.label && (
+                  <Button primary onClick={nextStep.onClick}>
+                    {nextStep.label}
+                  </Button>
+                )}
+              </div>
+              <div className="guide-steps mt-5">
+                {guideSteps.map((step, index) => (
+                  <div className="guide-step" key={step.label}>
+                    <span className="text-xs accent">{step.done ? 'Done' : `0${index + 1}`}</span>
+                    <span>{step.label}</span>
                   </div>
-                  {attempts.length ? (
-                    attempts
-                      .slice(-8)
-                      .reverse()
-                      .map((a) => (
-                        <button
-                          className="row w-full text-left"
-                          key={a.id}
-                          onClick={() => setDetail(a)}
-                        >
-                          <div>
-                            <div className="text-sm">{a.taskId}</div>
-                            <div className="text-xs muted mt-1">
-                              {data.workspaces.find((w) => w.id === a.workspaceId)?.name} ·{' '}
-                              {a.requestedModel}
-                            </div>
-                          </div>
-                          <Badge>{a.state}</Badge>
-                        </button>
-                      ))
-                  ) : (
-                    <Empty title="Room for your next idea">
-                      Add a repository, connect Copilot, and create your first plan.
-                    </Empty>
-                  )}
-                </section>
-                <section className="panel">
-                  <h2>Your repositories</h2>
-                  {(ws ? [ws] : data.workspaces).map((w) => (
-                    <div className="row" key={w.id}>
-                      <div className="min-w-0">
-                        <h3>{w.name}</h3>
-                        <div className="text-xs muted truncate mt-1">{w.root}</div>
-                        <div className="text-xs muted mt-2">
-                          ⑂ {w.branch} · Graphify <Badge>{w.graph.state}</Badge>
-                          {w.graph.nodes !== undefined && ` · ${count(w.graph.nodes)} nodes`}
-                        </div>
-                        {w.graph.detail && (
-                          <p className="text-xs muted max-w-xl">{w.graph.detail}</p>
-                        )}
-                      </div>
-                      <div className="toolbar">
-                        <Button onClick={() => select(w.id)}>Open</Button>
-                        <Button
-                          onClick={() =>
-                            void send({ type: 'graphify', workspaceId: w.id, rebuild: true })
-                          }
-                        >
-                          Rebuild graph
-                        </Button>
-                      </div>
+                ))}
+              </div>
+            </section>
+            {data.workspaces.length > 0 && (
+              <>
+                <div className="metrics">
+                  {[
+                    ['Active agents', running, 'Across independent sessions'],
+                    [
+                      'Waiting for approval',
+                      plans.filter((p) => p.state === 'draft').length,
+                      'Execution stays blocked',
+                    ],
+                    ['Observed tokens', count(tokens), 'Reported input + output only'],
+                    [
+                      'Repository workspaces',
+                      ws ? 1 : data.workspaces.length,
+                      'Separate context and history',
+                    ],
+                  ].map(([label, value, sub]) => (
+                    <div className="panel metric" key={label}>
+                      <div className="eyebrow">{label}</div>
+                      <strong>{value}</strong>
+                      <div className="text-xs muted">{sub}</div>
                     </div>
                   ))}
-                  {!data.workspaces.length && (
-                    <Empty title="No repositories yet">
-                      Select a Git repository. Graphify will check and index it automatically.
-                    </Empty>
-                  )}
-                </section>
-              </div>
-              <div className="stack">
-                <section className="panel">
-                  <h2>Start with a plan</h2>
-                  <p className="text-sm muted">
-                    A planning session can read your project and graph. It cannot edit files or run
-                    commands.
-                  </p>
-                  {ws ? (
-                    <Planning
-                      workspace={ws}
-                      send={send}
-                      disabled={busy || data.runtime.state !== 'connected'}
-                    />
-                  ) : (
-                    <p className="notice">Select a repository in the sidebar to start planning.</p>
-                  )}
-                </section>
-                <section className="panel">
-                  <h2>Approval boundaries</h2>
-                  <div className="stack text-sm muted">
-                    <div>
-                      01 <span className="ml-2">Review agents, models, and dependencies.</span>
-                    </div>
-                    <div>
-                      02 <span className="ml-2">Approve the exact execution scope.</span>
-                    </div>
-                    <div>
-                      03 <span className="ml-2">Inspect results before integration.</span>
-                    </div>
+                </div>
+                <div className="grid-main">
+                  <div className="stack">
+                    <section className="panel">
+                      <div className="flex justify-between items-center">
+                        <h2>Execution activity</h2>
+                        <Badge>{running ? 'running' : 'idle'}</Badge>
+                      </div>
+                      {attempts.length ? (
+                        attempts
+                          .slice(-8)
+                          .reverse()
+                          .map((a) => (
+                            <button
+                              className="row w-full text-left"
+                              key={a.id}
+                              onClick={() => setDetail(a)}
+                            >
+                              <div>
+                                <div className="text-sm">{a.taskId}</div>
+                                <div className="text-xs muted mt-1">
+                                  {data.workspaces.find((w) => w.id === a.workspaceId)?.name} ·{' '}
+                                  {a.requestedModel}
+                                </div>
+                              </div>
+                              <Badge>{a.state}</Badge>
+                            </button>
+                          ))
+                      ) : (
+                        <Empty title="Room for your next idea">
+                          Add a repository, connect Copilot, and create your first plan.
+                        </Empty>
+                      )}
+                    </section>
+                    <section className="panel">
+                      <h2>Your repositories</h2>
+                      {(ws ? [ws] : data.workspaces).map((w) => (
+                        <div className="row" key={w.id}>
+                          <div className="min-w-0">
+                            <h3>{w.name}</h3>
+                            <div className="text-xs muted truncate mt-1">{w.root}</div>
+                            <div className="text-xs muted mt-2">
+                              ⑂ {w.branch} · Graphify <Badge>{w.graph.state}</Badge>
+                              {w.graph.nodes !== undefined && ` · ${count(w.graph.nodes)} nodes`}
+                            </div>
+                            {w.graph.detail && (
+                              <p className="text-xs muted max-w-xl">{w.graph.detail}</p>
+                            )}
+                          </div>
+                          <div className="toolbar">
+                            <Button onClick={() => select(w.id)}>Open</Button>
+                            <Button
+                              onClick={() =>
+                                void send({ type: 'graphify', workspaceId: w.id, rebuild: true })
+                              }
+                            >
+                              Rebuild graph
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      {!data.workspaces.length && (
+                        <Empty title="No repositories yet">
+                          Select a Git repository. Graphify will check and index it automatically.
+                        </Empty>
+                      )}
+                    </section>
                   </div>
-                </section>
-                <section className="panel">
-                  <h2>Desktop updates</h2>
-                  <Badge>{data.update?.state ?? 'unchecked'}</Badge>
-                  <p className="text-xs muted">
-                    New releases download automatically. Installation waits for idle workspaces.
-                  </p>
-                </section>
-              </div>
-            </div>
+                  <div className="stack">
+                    <section className="panel">
+                      <h2>Start with a plan</h2>
+                      <p className="text-sm muted">
+                        A planning session can read your project and graph. It cannot edit files or
+                        run commands.
+                      </p>
+                      {ws ? (
+                        <Planning
+                          workspace={ws}
+                          send={send}
+                          disabled={busy || data.runtime.state !== 'connected'}
+                        />
+                      ) : (
+                        <p className="notice">
+                          Select a repository in the sidebar to start planning.
+                        </p>
+                      )}
+                    </section>
+                    <section className="panel">
+                      <h2>Approval boundaries</h2>
+                      <div className="stack text-sm muted">
+                        <div>
+                          01 <span className="ml-2">Review agents, models, and dependencies.</span>
+                        </div>
+                        <div>
+                          02 <span className="ml-2">Approve the exact execution scope.</span>
+                        </div>
+                        <div>
+                          03 <span className="ml-2">Inspect results before integration.</span>
+                        </div>
+                      </div>
+                    </section>
+                    <section className="panel">
+                      <h2>Desktop updates</h2>
+                      <Badge>{data.update?.state ?? 'unchecked'}</Badge>
+                      <p className="text-xs muted">
+                        New releases download automatically. Installation waits for idle workspaces.
+                      </p>
+                    </section>
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )}
         {page === 'Agents' && <Agents data={data} workspace={ws} send={send} />}
@@ -445,9 +663,28 @@ export function App() {
             {plans
               .slice()
               .reverse()
+              .slice(approvalIndex * pageSize, (approvalIndex + 1) * pageSize)
               .map((p) => (
-                <PlanCard key={p.id} plan={p} send={send} />
+                <div key={p.id} className="stack">
+                  <PlanCard plan={p} send={send} />
+                  <div className="toolbar justify-end">
+                    <Button
+                      danger
+                      onClick={() =>
+                        void send({
+                          type: 'deleteHistory',
+                          workspaceId: p.workspaceId,
+                          kind: 'plan',
+                          recordId: p.id,
+                        })
+                      }
+                    >
+                      Delete approval history
+                    </Button>
+                  </div>
+                </div>
               ))}
+            <Pagination total={plans.length} page={approvalIndex} setPage={setApprovalPage} />
             {!plans.length && (
               <div className="panel">
                 <Empty title="Nothing awaiting review">
@@ -462,6 +699,7 @@ export function App() {
             {runs
               .slice()
               .reverse()
+              .slice(runIndex * pageSize, (runIndex + 1) * pageSize)
               .map((run) => (
                 <section className="panel" key={run.id}>
                   <div className="flex justify-between items-center gap-3">
@@ -487,7 +725,12 @@ export function App() {
                               })
                             }
                           >
-                            {run.state === 'paused' ? 'Resume' : 'Pause'}
+                            {run.state === 'paused' &&
+                            run.error?.startsWith('Observed token dispatch limit')
+                              ? 'Continue past token limit'
+                              : run.state === 'paused'
+                                ? 'Resume'
+                                : 'Pause'}
                           </Button>
                           <Button
                             danger
@@ -504,9 +747,30 @@ export function App() {
                           </Button>
                         </>
                       )}
+                      {!['running', 'queued', 'paused'].includes(run.state) && (
+                        <Button
+                          danger
+                          onClick={() =>
+                            void send({
+                              type: 'deleteHistory',
+                              workspaceId: run.workspaceId,
+                              kind: 'run',
+                              recordId: run.id,
+                            })
+                          }
+                        >
+                          Delete run history
+                        </Button>
+                      )}
                     </div>
                   </div>
                   {run.error && <p className="notice error">{run.error}</p>}
+                  <RunBoard
+                    run={run}
+                    plan={data.plans.find((p) => p.id === run.planId)}
+                    attempts={attempts}
+                    onSelect={setDetail}
+                  />
                   {attempts
                     .filter((a) => a.runId === run.id)
                     .map((a) => (
@@ -527,6 +791,7 @@ export function App() {
                     ))}
                 </section>
               ))}
+            <Pagination total={runs.length} page={runIndex} setPage={setRunPage} />
             {!runs.length && (
               <div className="panel">
                 <Empty title="No runs yet">
@@ -536,7 +801,9 @@ export function App() {
             )}
           </div>
         )}
-        {page === 'Usage' && <UsageView key={selected} data={data} workspaceId={selected} />}
+        {page === 'Usage' && (
+          <UsageView key={selected} data={data} workspaceId={selected} send={send} />
+        )}
         {page === 'Context' &&
           (ws ? (
             <Context workspace={ws} data={data} send={send} />
@@ -948,6 +1215,9 @@ function Workflows({
         </div>
         <div className="mt-5">
           <span className="label">Run order</span>
+          <p className="text-xs muted mt-1 mb-3">
+            Sequential runs agents one at a time in the order below. Parallel starts them together.
+          </p>
           <div className="toolbar">
             <label>
               <input
@@ -1241,12 +1511,25 @@ function Workflows({
         </div>
       </details>
       {preview && (
-        <PlanCard plan={data.plans.find((p) => p.id === preview.id) ?? preview} send={send} />
+        <PlanCard
+          plan={data.plans.find((p) => p.id === preview.id) ?? preview}
+          send={send}
+          onRevise={setPreview}
+        />
       )}
     </div>
   );
 }
-function PlanCard({ plan, send }: { plan: Plan; send: Send }) {
+function PlanCard({
+  plan,
+  send,
+  onRevise,
+}: {
+  plan: Plan;
+  send: Send;
+  onRevise?: (plan: Plan) => void;
+}) {
+  const [editing, setEditing] = useState(false);
   return (
     <section className="panel">
       <div className="flex justify-between items-start">
@@ -1303,8 +1586,12 @@ function PlanCard({ plan, send }: { plan: Plan; send: Send }) {
       <div className="toolbar mt-4">
         {plan.state === 'draft' && (
           <>
+            <Button onClick={() => setEditing(!editing)}>
+              {editing ? 'Close editor' : 'Edit agents and steps'}
+            </Button>
             <Button
               primary
+              disabled={editing}
               onClick={() =>
                 void send({
                   type: 'approve',
@@ -1352,10 +1639,246 @@ function PlanCard({ plan, send }: { plan: Plan; send: Send }) {
           </span>
         )}
       </div>
+      {editing && plan.state === 'draft' && (
+        <DraftEditor
+          plan={plan}
+          send={send}
+          onSaved={(updated) => {
+            setEditing(false);
+            onRevise?.(updated);
+          }}
+        />
+      )}
     </section>
   );
 }
-function UsageView({ data, workspaceId }: { data: Snapshot; workspaceId: string }) {
+function DraftEditor({
+  plan,
+  send,
+  onSaved,
+}: {
+  plan: Plan;
+  send: Send;
+  onSaved: (plan: Plan) => void;
+}) {
+  const [title, setTitle] = useState(plan.title);
+  const [tasks, setTasks] = useState<Task[]>(() =>
+    plan.tasks.map(({ agent, mcp: _mcp, ...task }) => ({ ...task, source: agent.source })),
+  );
+  const [agents, setAgents] = useState<
+    { name: string; role: string; source: 'custom' | 'repository' }[]
+  >(
+    plan.tasks.map((task) => ({
+      name: task.agent.name,
+      role: task.role,
+      source: task.agent.source,
+    })),
+  );
+  useEffect(() => {
+    let active = true;
+    void window.desktop
+      .request<{ repository: { name: string; role: string }[]; custom: Agent[] }>({
+        type: 'previewAgents',
+        workspaceId: plan.workspaceId,
+      })
+      .then((profiles) => {
+        if (!active) return;
+        setAgents((current) => {
+          const all = [
+            ...current,
+            ...profiles.repository.map((agent) => ({ ...agent, source: 'repository' as const })),
+            ...profiles.custom
+              .filter((agent) => !agent.archived)
+              .map((agent) => ({ name: agent.name, role: agent.role, source: 'custom' as const })),
+          ];
+          return all.filter(
+            (agent, index) =>
+              all.findIndex(
+                (candidate) => candidate.role === agent.role && candidate.source === agent.source,
+              ) === index,
+          );
+        });
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [plan.workspaceId]);
+  const linear = (items: Task[]) =>
+    items.every((task, index) =>
+      index === 0
+        ? task.dependsOn.length === 0
+        : task.dependsOn.length === 1 && task.dependsOn[0] === items[index - 1].id,
+    );
+  const update = (id: string, patch: Partial<Task>) =>
+    setTasks((current) => current.map((task) => (task.id === id ? { ...task, ...patch } : task)));
+  const move = (index: number, direction: -1 | 1) =>
+    setTasks((current) => {
+      const next = [...current];
+      [next[index], next[index + direction]] = [next[index + direction], next[index]];
+      return linear(current)
+        ? next.map((task, i) => ({ ...task, dependsOn: i ? [next[i - 1].id] : [] }))
+        : next;
+    });
+  const add = () =>
+    setTasks((current) => {
+      let number = 1;
+      while (current.some((task) => task.id === `step-${number}`)) number++;
+      const agent = current.at(-1);
+      return [
+        ...current,
+        {
+          id: `step-${number}`,
+          title: '',
+          prompt: '',
+          role: agent?.role ?? plan.tasks[0].role,
+          source: agent?.source ?? plan.tasks[0].agent.source,
+          dependsOn: linear(current) && agent ? [agent.id] : [],
+        },
+      ];
+    });
+  const remove = (id: string) =>
+    setTasks((current) => {
+      const next = current
+        .filter((task) => task.id !== id)
+        .map((task) => ({ ...task, dependsOn: task.dependsOn.filter((value) => value !== id) }));
+      return linear(current)
+        ? next.map((task, index) => ({ ...task, dependsOn: index ? [next[index - 1].id] : [] }))
+        : next;
+    });
+  return (
+    <form
+      className="stack mt-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void send(
+          {
+            type: 'reviseDraft',
+            workspaceId: plan.workspaceId,
+            planId: plan.id,
+            hash: plan.hash,
+            title: title.trim(),
+            tasks,
+            limits: plan.limits,
+          },
+          'Revised draft saved. Review the new scope before approving.',
+        ).then((result) => {
+          if (result) onSaved(result as Plan);
+        });
+      }}
+    >
+      <div className="notice">
+        Edits create a new draft and approval hash. The current draft is removed from the approval
+        list.
+      </div>
+      <Field label="Workflow title">
+        <input
+          required
+          maxLength={200}
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+        />
+      </Field>
+      {tasks.map((task, index) => (
+        <div className="row" key={task.id}>
+          <div className="flex justify-between items-center gap-3">
+            <h3>Step {index + 1}</h3>
+            <div className="toolbar">
+              <Button disabled={index === 0} onClick={() => move(index, -1)}>
+                Move up
+              </Button>
+              <Button disabled={index === tasks.length - 1} onClick={() => move(index, 1)}>
+                Move down
+              </Button>
+              <Button danger disabled={tasks.length === 1} onClick={() => remove(task.id)}>
+                Remove
+              </Button>
+            </div>
+          </div>
+          <div className="form-grid mt-3">
+            <Field label="Agent">
+              <select
+                value={`${task.source}:${task.role}`}
+                onChange={(event) => {
+                  const [source, role] = event.target.value.split(':') as [
+                    'custom' | 'repository',
+                    string,
+                  ];
+                  update(task.id, { role, source });
+                }}
+              >
+                {agents.map((agent) => (
+                  <option
+                    key={`${agent.source}:${agent.role}`}
+                    value={`${agent.source}:${agent.role}`}
+                  >
+                    {agent.name} · {agent.source}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Step title">
+              <input
+                required
+                maxLength={200}
+                value={task.title}
+                onChange={(event) => update(task.id, { title: event.target.value })}
+              />
+            </Field>
+          </div>
+          <Field label="What should this agent do?">
+            <textarea
+              required
+              rows={3}
+              maxLength={30000}
+              value={task.prompt}
+              onChange={(event) => update(task.id, { prompt: event.target.value })}
+            />
+          </Field>
+          <div className="mt-3">
+            <span className="label">Wait for these steps</span>
+            <div className="toolbar">
+              {tasks
+                .filter((candidate) => candidate.id !== task.id)
+                .map((candidate) => (
+                  <label key={candidate.id} className="text-xs">
+                    <input
+                      type="checkbox"
+                      checked={task.dependsOn.includes(candidate.id)}
+                      onChange={(event) =>
+                        update(task.id, {
+                          dependsOn: event.target.checked
+                            ? [...task.dependsOn, candidate.id]
+                            : task.dependsOn.filter((id) => id !== candidate.id),
+                        })
+                      }
+                    />{' '}
+                    {candidate.title || candidate.id}
+                  </label>
+                ))}
+              {tasks.length === 1 && <span className="text-xs muted">This is the first step.</span>}
+            </div>
+          </div>
+        </div>
+      ))}
+      <div className="toolbar">
+        <Button onClick={add}>Add step</Button>
+        <button className="btn primary" type="submit">
+          Save revised draft
+        </button>
+      </div>
+    </form>
+  );
+}
+function UsageView({
+  data,
+  workspaceId,
+  send,
+}: {
+  data: Snapshot;
+  workspaceId: string;
+  send: Send;
+}) {
   const filterKey = `usage-filters:${workspaceId}`;
   const [saved] = useState<{ model?: string; query?: string; date?: string }>(() => {
     try {
@@ -1366,7 +1889,8 @@ function UsageView({ data, workspaceId }: { data: Snapshot; workspaceId: string 
   });
   const [model, setModel] = useState(saved.model ?? ''),
     [query, setQuery] = useState(saved.query ?? ''),
-    [date, setDate] = useState(saved.date ?? '');
+    [date, setDate] = useState(saved.date ?? ''),
+    [page, setPage] = useState(0);
   useEffect(() => {
     localStorage.setItem(filterKey, JSON.stringify({ model, query, date }));
   }, [filterKey, model, query, date]);
@@ -1377,6 +1901,7 @@ function UsageView({ data, workspaceId }: { data: Snapshot; workspaceId: string 
       (!date || u.timestamp.slice(0, 10) >= date) &&
       (!query || [u.runId, u.taskId, u.agentId, u.attemptId].some((v) => v.includes(query))),
   );
+  const usagePage = Math.min(page, Math.max(0, Math.ceil(rows.length / pageSize) - 1));
   const sum = (field: 'input' | 'output' | 'reasoning' | 'cacheRead') => {
     const deltas = rows.filter((u) => u.kind === 'delta');
     return deltas.some((u) => u[field] !== null)
@@ -1405,7 +1930,13 @@ function UsageView({ data, workspaceId }: { data: Snapshot; workspaceId: string 
       <section className="panel">
         <div className="form-grid mb-4">
           <Field label="Model">
-            <select value={model} onChange={(e) => setModel(e.target.value)}>
+            <select
+              value={model}
+              onChange={(e) => {
+                setModel(e.target.value);
+                setPage(0);
+              }}
+            >
               <option value="">All reported models</option>
               {[...new Set(data.usage.map((u) => u.model).filter(Boolean))].map((m) => (
                 <option key={m} value={m!}>
@@ -1415,10 +1946,23 @@ function UsageView({ data, workspaceId }: { data: Snapshot; workspaceId: string 
             </select>
           </Field>
           <Field label="Run, task, agent, or attempt ID">
-            <input value={query} onChange={(e) => setQuery(e.target.value)} />
+            <input
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(0);
+              }}
+            />
           </Field>
           <Field label="From date">
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => {
+                setDate(e.target.value);
+                setPage(0);
+              }}
+            />
           </Field>
         </div>
         <div className="table-wrap">
@@ -1431,12 +1975,13 @@ function UsageView({ data, workspaceId }: { data: Snapshot; workspaceId: string 
                 <th>Input</th>
                 <th>Output</th>
                 <th>Coverage</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
               {rows
-                .slice(-200)
                 .reverse()
+                .slice(usagePage * pageSize, (usagePage + 1) * pageSize)
                 .map((u) => (
                   <tr key={u.id}>
                     <td>{time(u.timestamp)}</td>
@@ -1450,6 +1995,21 @@ function UsageView({ data, workspaceId }: { data: Snapshot; workspaceId: string 
                     <td>
                       <Badge>{u.coverage}</Badge>
                     </td>
+                    <td>
+                      <Button
+                        danger
+                        onClick={() =>
+                          void send({
+                            type: 'deleteHistory',
+                            workspaceId: u.workspaceId,
+                            kind: 'usage',
+                            recordId: u.id,
+                          })
+                        }
+                      >
+                        Delete
+                      </Button>
+                    </td>
                   </tr>
                 ))}
             </tbody>
@@ -1460,9 +2020,8 @@ function UsageView({ data, workspaceId }: { data: Snapshot; workspaceId: string 
             Usage appears when Copilot reports it. Interrupted streams may have incomplete coverage.
           </Empty>
         )}
-        <p className="text-xs muted">
-          Showing the latest 200 matching observations. All matching deltas are included in totals.
-        </p>
+        <Pagination total={rows.length} page={usagePage} setPage={setPage} />
+        <p className="text-xs muted">Totals include all matching observations across pages.</p>
       </section>
     </div>
   );
@@ -1562,6 +2121,95 @@ function Context({ workspace, data, send }: { workspace: Workspace; data: Snapsh
     </div>
   );
 }
+function McpDirectory({ onSelect }: { onSelect: (entry: McpDirectoryEntry) => void }) {
+  const [query, setQuery] = useState('');
+  const [appliedQuery, setAppliedQuery] = useState('');
+  const [result, setResult] = useState<McpDirectoryResult>();
+  const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const load = async (search: string, cursor: string | undefined, pageIndex: number) => {
+    setLoading(true);
+    setError('');
+    try {
+      const next = await window.desktop.request<McpDirectoryResult>({
+        type: 'searchMcpDirectory',
+        query: search,
+        cursor,
+      });
+      setResult(next);
+      setPage(pageIndex);
+      setAppliedQuery(search);
+    } catch (failure) {
+      setError((failure as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <section className="panel mb-4">
+      <h2>Find a public MCP server</h2>
+      <p className="text-xs muted">
+        Search the public MCP Registry by server name. Listings are metadata, not a connection or
+        a security endorsement. Review an endpoint before saving; authentication and tool access
+        remain separate steps. Private servers can still be added manually below.
+      </p>
+      <form
+        className="toolbar mt-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setCursors([undefined]);
+          setResult(undefined);
+          void load(query.trim(), undefined, 0);
+        }}
+      >
+        <input
+          aria-label="Search public MCP servers"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search by name, for example figma"
+        />
+        <button className="btn primary" disabled={loading || (query.trim().length > 0 && [...query.trim()].length < 3)}>
+          {loading ? 'Searching…' : query.trim() ? 'Search directory' : 'Browse directory'}
+        </button>
+      </form>
+      {error && <p className="notice error" role="alert">{error}</p>}
+      {result && (
+        <>
+          <div className="directory-results mt-4">
+            {result.entries.map((entry) => (
+              <div className="row" key={`${entry.name}:${entry.version}`}>
+                <div className="flex justify-between items-start gap-3">
+                  <h3>{entry.title}</h3>
+                  <Badge>{entry.status}</Badge>
+                </div>
+                <div className="text-xs muted break-all mt-1">{entry.name} · {entry.version}</div>
+                <p className="text-sm muted mt-2">{entry.description}</p>
+                <p className="text-xs muted break-all mt-2">
+                  {entry.remote ? `${entry.remote.transport.toUpperCase()} · ${entry.remote.endpoint}` : entry.hasPackage ? 'Package setup requires manual review' : 'No compatible remote endpoint listed'}
+                </p>
+                {entry.remote && entry.status === 'active' && (
+                  <Button onClick={() => onSelect(entry)}>Review connection setup</Button>
+                )}
+              </div>
+            ))}
+          </div>
+          {!result.entries.length && <p className="notice">No public servers matched this search.</p>}
+          <div className="toolbar justify-between mt-4">
+            <Button disabled={loading || page === 0} onClick={() => void load(appliedQuery, cursors[page - 1], page - 1)}>Previous</Button>
+            <span className="text-xs muted">Directory page {page + 1}</span>
+            <Button disabled={loading || !result.nextCursor} onClick={() => {
+              if (!result.nextCursor) return;
+              setCursors(cursors.slice(0, page + 1).concat(result.nextCursor));
+              void load(appliedQuery, result.nextCursor, page + 1);
+            }}>Next</Button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
 function Connections({
   workspace,
   data,
@@ -1586,6 +2234,16 @@ function Connections({
     [secret, setSecret] = useState(''),
     [tools, setTools] = useState('');
   return (
+    <>
+    <McpDirectory onSelect={(entry) => {
+      if (!entry.remote) return;
+      const suggested = (entry.name.split('/').at(-1) || 'mcp').replace(/[^\w-]/g, '-').slice(0, 100);
+      setForm({ ...initial, name: suggested, transport: entry.remote.transport, endpoint: entry.remote.endpoint });
+      setArgs('[]');
+      setTools('');
+      setSecret('');
+      document.getElementById('connection-editor')?.scrollIntoView({ behavior: 'smooth' });
+    }} />
     <div className="grid-main">
       <section className="panel">
         <h2>Workspace connections</h2>
@@ -1599,11 +2257,37 @@ function Connections({
             <div className="py-5 border-b border-[var(--line)]" key={m.id}>
               <div className="flex justify-between">
                 <h3>{m.name}</h3>
-                <Badge>{m.state}</Badge>
+                <Badge>
+                  {m.state === 'stopped' && !m.enabled
+                    ? 'disabled'
+                    : m.state === 'stopped' && m.lastProbe?.status === 'connected'
+                      ? 'verified'
+                      : m.state}
+                </Badge>
               </div>
+              {m.lastProbe?.status === 'connected' && (
+                <p className="text-xs muted mt-2">
+                  Connected in the last test at {time(m.lastProbe.checkedAt)}
+                  {m.lastProbe.toolCount !== undefined
+                    ? ` · ${count(m.lastProbe.toolCount)} tools found`
+                    : ''}
+                  . The test session is closed; an approved attempt opens its own connection.
+                  {!m.enabled &&
+                    ' Enable this connection and bind its tools to an agent to use it.'}
+                </p>
+              )}
               <p className="text-xs muted break-all">
                 {m.transport} · {m.endpoint}
               </p>
+              {m.auth === 'oauth' &&
+                m.endpoint.replace(/\/$/, '') === 'https://mcp.figma.com/mcp' && (
+                  <p className="notice">
+                    Figma's remote MCP server restricts which clients can connect. If sign-in
+                    completes but verification still requires authentication, use a supported client
+                    or the Figma desktop server preset below. The desktop server needs Figma's
+                    desktop app running and has fewer tools.
+                  </p>
+                )}
               <div className="toolbar">
                 <Button
                   onClick={() => {
@@ -1647,11 +2331,11 @@ function Connections({
                       type: 'mcpAction',
                       workspaceId: workspace.id,
                       serverId: m.id,
-                      action: 'disconnect',
+                      action: m.enabled ? 'disconnect' : 'enable',
                     })
                   }
                 >
-                  Disable
+                  {m.enabled ? 'Disable' : 'Enable'}
                 </Button>
                 <Button
                   onClick={() =>
@@ -1664,6 +2348,19 @@ function Connections({
                   }
                 >
                   Clear app secret
+                </Button>
+                <Button
+                  danger
+                  onClick={() =>
+                    void send({
+                      type: 'mcpAction',
+                      workspaceId: workspace.id,
+                      serverId: m.id,
+                      action: 'delete',
+                    })
+                  }
+                >
+                  Remove connection
                 </Button>
               </div>
               {m.diagnostic && (
@@ -1680,8 +2377,40 @@ function Connections({
           </Empty>
         )}
       </section>
-      <section className="panel">
+      <section className="panel" id="connection-editor">
         <h2>{form.id ? 'Edit connection' : 'Add connection'}</h2>
+        <div className="toolbar mt-3 mb-4">
+          <Button
+            onClick={() => {
+              const existing = data.mcp.find(
+                (connection) =>
+                  connection.workspaceId === workspace.id && connection.name === 'figma-desktop',
+              );
+              setForm(
+                existing ?? {
+                  ...initial,
+                  name: 'figma-desktop',
+                  transport: 'http',
+                  endpoint: 'http://127.0.0.1:3845/mcp',
+                  auth: 'none',
+                },
+              );
+              setArgs(JSON.stringify(existing?.args ?? []));
+              setTools(existing?.tools.join(', ') ?? '');
+              setSecret('');
+            }}
+          >
+            Use Figma desktop preset
+          </Button>
+        </div>
+        {form.name === 'figma-desktop' && form.endpoint === 'http://127.0.0.1:3845/mcp' && (
+          <p className="notice">
+            Open a Figma Design file in the Figma desktop app, turn on Dev Mode, and enable its
+            desktop MCP server. Save this connection, test it, select only the tools your agent
+            needs, then enable and bind it. Figma requires an eligible Dev or Full seat for its
+            desktop server.
+          </p>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -1812,6 +2541,7 @@ function Connections({
         </p>
       </section>
     </div>
+    </>
   );
 }
 function Settings({
