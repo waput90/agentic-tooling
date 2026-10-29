@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-electron/
+release/
+coverage/
+test-results/
+.local/
+*.log
+*.tsbuildinfo
+graphify-out/cache/
+graphify-out/manifest.json
+graphify-out/.graphify_*

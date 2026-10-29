@@ -1,0 +1,65 @@
+name: Windows release
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Stable release version, for example 0.1.1'
+        required: true
+        type: string
+permissions:
+  contents: write
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Set version from release tag or manual input
+        shell: pwsh
+        env:
+          MANUAL_VERSION: ${{ inputs.version }}
+        run: |
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME -replace '^v', '' } else { $env:MANUAL_VERSION }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Use a stable semantic version such as v0.1.1.' }
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.version=process.argv[1];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')" $version
+          "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm mcp:smoke
+      - run: pnpm isolation:smoke
+      - run: pnpm smoke
+      - name: Package without publishing
+        run: pnpm exec electron-builder --win nsis --publish never
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+      - name: Packaged startup smoke
+        shell: pwsh
+        run: |
+          $env:AGENTIC_PACKAGED_EXE = (Resolve-Path 'release/win-unpacked/Agentic Tooling.exe').Path
+          pnpm smoke
+      - name: Publish installer and updater manifest
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $artifacts = Get-ChildItem release -File | Where-Object { $_.Extension -in '.exe', '.blockmap', '.yml' } | ForEach-Object FullName
+          gh release create "v$env:RELEASE_VERSION" @artifacts --target '${{ github.sha }}' --title "Agentic Tooling $env:RELEASE_VERSION" --notes "Automatic Windows build from commit ${{ github.sha }}."
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-smoke
+          path: test-results/

@@ -1,0 +1,80 @@
+name: headroom
+
+services:
+  headroom-proxy:
+    image: ${HEADROOM_IMAGE:-ghcr.io/headroomlabs-ai/headroom:latest}
+    init: true
+    restart: unless-stopped
+    command: ["--host", "0.0.0.0", "--port", "8787"]
+    ports:
+      - "127.0.0.1:${HEADROOM_PROXY_PORT:-8787}:8787"
+    environment:
+      HEADROOM_WORKSPACE_DIR: /home/nonroot/.headroom
+      HEADROOM_CONFIG_DIR: /home/nonroot/.headroom/config
+      # Bind inside Docker; host publication above remains loopback-only.
+      HEADROOM_ALLOW_UNAUTHENTICATED_BIND: "1"
+      # Allow the MCP peer container to call compression routes.
+      HEADROOM_COMPRESS_ALLOW_REMOTE: "1"
+      HEADROOM_TELEMETRY: "on"
+      HEADROOM_BEACON: "off"
+    volumes:
+      - proxy-data:/home/nonroot/.headroom
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/readyz', timeout=4).close()"
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+
+  headroom-mcp:
+    image: ${HEADROOM_IMAGE:-ghcr.io/headroomlabs-ai/headroom:latest}
+    init: true
+    restart: unless-stopped
+    # The image defaults to 'headroom proxy'; override it for MCP.
+    entrypoint: ["headroom"]
+    command:
+      - mcp
+      - serve
+      - --transport
+      - http
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8788"
+      - --path
+      - /mcp
+      - --proxy-url
+      - http://headroom-proxy:8787
+    depends_on:
+      headroom-proxy:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${HEADROOM_MCP_PORT:-8788}:8788"
+    environment:
+      HEADROOM_WORKSPACE_DIR: /home/nonroot/.headroom
+      HEADROOM_CONFIG_DIR: /home/nonroot/.headroom/config
+      HEADROOM_BEACON: "off"
+    volumes:
+      - mcp-data:/home/nonroot/.headroom
+    healthcheck:
+      # MCP is not a normal GET health endpoint; check that its port is open.
+      # Use your MCP client's Test Connection action to verify tool discovery.
+      test:
+        - CMD
+        - python
+        - -c
+        - "import socket; socket.create_connection(('127.0.0.1', 8788), timeout=4).close()"
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+
+volumes:
+  # Persist on-disk state. In-memory caches and TTL expiry still follow
+  # Headroom's behavior; these volumes do not guarantee durable retrieval.
+  proxy-data:
+  mcp-data:

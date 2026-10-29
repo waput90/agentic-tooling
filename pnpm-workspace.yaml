@@ -1,0 +1,9 @@
+packages:
+  - '.'
+overrides:
+  zod: 4.6.7
+allowBuilds:
+  electron: true
+  esbuild: true
+  koffi: true
+  electron-winstaller: true
