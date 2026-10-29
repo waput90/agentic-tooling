@@ -11,6 +11,7 @@ import {
   workflowTemplateSchema,
   commandSchema,
   limitsSchema,
+  headroomSchema,
   type Agent,
   type Attempt,
   type Command,
@@ -31,12 +32,17 @@ import { discover, resolveAgent } from './agents';
 import { Graphify } from './graphify';
 import { captureUsage } from './usage';
 import type { Job } from '../copilot-worker';
+import { checkHeadroom, headroomUrl } from './headroom';
 
 type Host = (type: string, data: unknown) => Promise<unknown>;
 export class Service {
   readonly store: Store;
   readonly graphify: Graphify;
   runtime: Snapshot['runtime'] = { state: 'unchecked', models: [] };
+  private headroomStatus: Snapshot['headroom']['status'] = {
+    state: 'unchecked',
+    baseUrl: 'http://127.0.0.1:8787',
+  };
   private active = new Map<string, Worker>();
   private locks = new Map<string, Promise<unknown>>();
   private ticking = false;
@@ -96,6 +102,7 @@ export class Service {
   }
   snapshot(): Snapshot {
     return {
+      headroom: { config: this.headroomConfig(), status: this.headroomStatus },
       templates: this.templates(),
       workspaces: this.store.list('workspaces'),
       agents: this.store.list('agents'),
@@ -108,6 +115,13 @@ export class Service {
       settings: this.settings(),
       runtime: this.runtime,
     };
+  }
+  private headroomConfig() {
+    try {
+      return headroomSchema.parse(this.store.get('settings', 'headroom'));
+    } catch {
+      return headroomSchema.parse({});
+    }
   }
   private templates(): WorkflowTemplate[] {
     try {
@@ -127,6 +141,23 @@ export class Service {
   }
   private async dispatch(c: Command): Promise<unknown> {
     switch (c.type) {
+      case 'checkHeadroom':
+        this.headroomStatus = await checkHeadroom(c.baseUrl);
+        return this.headroomStatus;
+      case 'saveHeadroom': {
+        const config = { ...c.config, baseUrl: headroomUrl(c.config.baseUrl) };
+        if (config.enabled) {
+          this.headroomStatus = await checkHeadroom(config.baseUrl);
+          if (this.headroomStatus.state !== 'available') {
+            this.changed();
+            throw new Error(this.headroomStatus.detail);
+          }
+        }
+        if (hash(config) !== hash(this.headroomConfig()))
+          for (const ws of this.store.list<Workspace>('workspaces')) this.invalidate(ws.id);
+        this.store.put('settings', 'headroom', config);
+        return config;
+      }
       case 'snapshot':
         return this.snapshot();
       case 'addWorkspace': {
@@ -302,6 +333,7 @@ export class Service {
           limits: { concurrency: 1, maxTokens: 100000, timeoutMinutes: 15 },
           context: this.store.list('context', ws.id),
           hash: 'planning',
+          headroom: this.headroomConfig().enabled ? this.headroomConfig() : undefined,
           state: 'draft',
           createdAt: run.createdAt,
         };
@@ -735,19 +767,6 @@ export class Service {
     validateDag(tasks);
     const ws = this.ws(workspaceId);
     const resolved = [];
-    if (
-      await git(ws.root, [
-        'status',
-        '--porcelain',
-        '--untracked-files=normal',
-        '--',
-        '.',
-        ':(exclude)graphify-out',
-      ])
-    )
-      throw new Error(
-        'Commit or stash repository changes before creating an execution plan. Graphify output is excluded.',
-      );
     for (const task of tasks) {
       const agent = await resolveAgent(
         ws,
@@ -770,6 +789,7 @@ export class Service {
       context: this.store.list<ContextItem>('context', workspaceId),
       workspaceConcurrency: ws.concurrency,
       globalConcurrency: this.settings().globalConcurrency,
+      ...(this.headroomConfig().enabled ? { headroom: this.headroomConfig() } : {}),
     };
     const plan: Plan = {
       id: randomUUID(),
@@ -780,6 +800,7 @@ export class Service {
       tasks: resolved,
       limits,
       context: payload.context,
+      headroom: payload.headroom,
       hash: hash(payload),
       state: 'draft',
       createdAt: new Date().toISOString(),
@@ -818,10 +839,13 @@ export class Service {
         context: plan.context,
         workspaceConcurrency: ws.concurrency,
         globalConcurrency: this.settings().globalConcurrency,
+        ...(plan.headroom || this.headroomConfig().enabled
+          ? { headroom: this.headroomConfig() }
+          : {}),
       };
       if (hash(scope) !== stored.hash)
         throw new Error(
-          'Repository baseline, agent, instructions, connection, or limits changed. Create and approve a fresh plan.',
+          'Repository baseline, agent, instructions, connection, Headroom configuration, or limits changed. Create and approve a fresh plan.',
         );
     } catch (e) {
       this.store.put(
@@ -832,6 +856,21 @@ export class Service {
       );
       throw e;
     }
+    // Drafts may be saved with local edits, but worktrees execute the committed base.
+    // Keep a blocked draft reviewable so stashing edits does not discard its scope.
+    if (
+      await git(this.ws(plan.workspaceId).root, [
+        'status',
+        '--porcelain',
+        '--untracked-files=normal',
+        '--',
+        '.',
+        ':(exclude)graphify-out',
+      ])
+    )
+      throw new Error(
+        'Draft saved. Commit or stash repository changes before approving or executing it. Graphify output is excluded. If you commit changes, create a fresh draft to capture the new base.',
+      );
   }
   private newAttempt(run: Run, task: Plan['tasks'][number]): Attempt {
     return {
@@ -1006,6 +1045,7 @@ export class Service {
           prompt: `${task.prompt}\n\nSelected context:\n${attempt.context}`,
           planning: run.mode === 'plan',
           summarizing: run.purpose === 'summary',
+          headroom: plan.headroom,
           timeoutMinutes: plan.limits.timeoutMinutes,
           mcp: mcp.config,
           secrets: mcp.secrets,

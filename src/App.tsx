@@ -1057,6 +1057,18 @@ function PlanCard({ plan, send }: { plan: Plan; send: Send }) {
         Concurrency {plan.limits.concurrency} · {count(plan.limits.maxTokens)} token dispatch
         threshold · {plan.limits.timeoutMinutes} min / attempt
       </div>
+      {plan.state === 'draft' && (
+        <p className="text-sm muted mt-2">
+          Drafts can be saved with local changes. Commit or stash them before approval. After a
+          commit, create a fresh draft to capture the new repository base.
+        </p>
+      )}
+      {plan.headroom?.enabled && (
+        <p className="text-xs muted mt-2">
+          Headroom: {plan.headroom.baseUrl} · compress read tool results above{' '}
+          {count(plan.headroom.minCharacters)} characters; original results remain available.
+        </p>
+      )}
       {plan.tasks.map((t) => (
         <div className="row" key={t.id}>
           <div>
@@ -1612,6 +1624,11 @@ function Settings({
     worktrees: number;
   }>();
   const [retention, setRetention] = useState(90);
+  const [headroom, setHeadroom] = useState(data.headroom.config);
+  const [checkingHeadroom, setCheckingHeadroom] = useState(false);
+  useEffect(() => {
+    void send({ type: 'checkHeadroom', baseUrl: data.headroom.config.baseUrl });
+  }, []);
   useEffect(() => {
     void window.desktop
       .request<{ databaseBytes: number; events: number; retentionDays: number; worktrees: number }>(
@@ -1771,6 +1788,85 @@ function Settings({
         </section>
       </div>
       <div className="stack">
+        <section className="panel">
+          <h2>Headroom context compression</h2>
+          <Badge>{data.headroom.status.state}</Badge>
+          <p className="text-sm muted">
+            Use a local Headroom server to compress large file reads, directory listings, and
+            Graphify results. Copilot remains the model provider. If compression fails, the original
+            result is used. The agent can request original results with raw=true.
+          </p>
+          <Field label="Headroom local URL">
+            <input
+              value={headroom.baseUrl}
+              onChange={(e) => setHeadroom({ ...headroom, baseUrl: e.target.value })}
+              placeholder="http://127.0.0.1:8787"
+            />
+          </Field>
+          <label className="flex gap-2 items-center my-4">
+            <input
+              type="checkbox"
+              checked={headroom.enabled}
+              onChange={(e) => setHeadroom({ ...headroom, enabled: e.target.checked })}
+            />
+            Enable Headroom for new plans
+          </label>
+          <Field label="Compress results above this many characters">
+            <input
+              type="number"
+              min={500}
+              max={100000}
+              value={headroom.minCharacters}
+              onChange={(e) => setHeadroom({ ...headroom, minCharacters: +e.target.value })}
+            />
+          </Field>
+          <Field label="Headroom timeout (milliseconds)">
+            <input
+              type="number"
+              min={500}
+              max={30000}
+              value={headroom.timeoutMs}
+              onChange={(e) => setHeadroom({ ...headroom, timeoutMs: +e.target.value })}
+            />
+          </Field>
+          <div className="toolbar mt-4">
+            <Button
+              disabled={checkingHeadroom}
+              onClick={() => {
+                setCheckingHeadroom(true);
+                void send({ type: 'checkHeadroom', baseUrl: headroom.baseUrl }).finally(() =>
+                  setCheckingHeadroom(false),
+                );
+              }}
+            >
+              {checkingHeadroom ? 'Checking…' : 'Check Headroom'}
+            </Button>
+            <Button
+              primary
+              disabled={checkingHeadroom}
+              onClick={() => {
+                setCheckingHeadroom(true);
+                void send(
+                  { type: 'saveHeadroom', config: headroom },
+                  'Headroom settings saved. Create fresh plans to use this configuration.',
+                ).finally(() => setCheckingHeadroom(false));
+              }}
+            >
+              Save Headroom settings
+            </Button>
+          </div>
+          {data.headroom.status.detail && (
+            <p className="notice">
+              {data.headroom.status.baseUrl}: {data.headroom.status.detail}
+            </p>
+          )}
+          <p className="text-xs muted mt-3">
+            Start your installed service with <code>headroom proxy --port 8787</code>, then check
+            and enable it here. Saving checks availability before enabling. Existing plans keep
+            their configuration and require renewed approval after changes. Compression observations
+            appear in run events; they are separate from Copilot usage.
+          </p>
+        </section>
         <section className="panel">
           <h2>Application preferences</h2>
           <Field label="Global concurrent agent limit">

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, symlink, realpath } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, symlink, realpath, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from '../electron/core/store';
@@ -598,7 +598,7 @@ test('silent update preparation refuses queued work and fences new admissions wh
   }
 });
 
-test('planning creates only an unapproved draft and context summaries retain provenance', async () => {
+test('planning with local edits creates only an unapproved draft and summaries retain provenance', async () => {
   const service = new Service(
     await temp(),
     () => {},
@@ -631,6 +631,7 @@ test('planning creates only an unapproved draft and context summaries retain pro
       text: 'Keep the API contract',
       kind: 'constraint',
     });
+    await writeFile(join(ws.root, 'source.ts'), 'export const value = 2;\n');
     const run = (await service.command({
       type: 'plan',
       workspaceId: ws.id,
@@ -653,6 +654,19 @@ test('planning creates only an unapproved draft and context summaries retain pro
       service.command({ type: 'execute', workspaceId: ws.id, planId: draft.id }),
       /approved/,
     );
+    await assert.rejects(
+      service.command({
+        type: 'approve',
+        workspaceId: ws.id,
+        planId: draft.id,
+        hash: draft.hash,
+        decision: 'approve',
+      }),
+      /Commit or stash.*before approving or executing/,
+    );
+    assert.equal(service.store.get<Plan>('plans', draft.id, ws.id).state, 'draft');
+    assert.equal(service.store.list('approvals', ws.id).length, 0);
+    assert.equal(await readFile(join(ws.root, 'source.ts'), 'utf8'), 'export const value = 2;\n');
     const summary = (await service.command({
       type: 'summarizeContext',
       workspaceId: ws.id,
@@ -667,6 +681,80 @@ test('planning creates only an unapproved draft and context summaries retain pro
       service.store
         .list<{ text: string }>('context', ws.id)
         .some((c) => c.text === 'Summary of selected constraints'),
+    );
+  } finally {
+    await service.command({ type: 'shutdown' });
+    service.store.close();
+  }
+});
+
+test('manual drafts accept staged and untracked edits but approval and execution require a clean base', async () => {
+  let confirmations = 0;
+  const service = new Service(
+    await temp(),
+    () => {},
+    async () => {
+      confirmations++;
+      return true;
+    },
+  );
+  try {
+    service.runtime = { state: 'connected', models: [{ id: 'model-a', name: 'A' }] };
+    await service.command({ type: 'saveAgent', agent: { ...custom, id: undefined } });
+    const ws = (await service.command({ type: 'addWorkspace', path: await repo() })) as Workspace;
+    await service.graphify.ensure(ws.id, ws.root);
+    const source = join(ws.root, 'source.ts');
+    await writeFile(source, 'export const value = 2;\n');
+    await git(ws.root, ['add', 'source.ts']);
+    const draft = (await service.command({
+      type: 'savePlan',
+      workspaceId: ws.id,
+      title: 'Local draft',
+      tasks: [task('edit')],
+      limits,
+    })) as Plan;
+    const approval = {
+      type: 'approve' as const,
+      workspaceId: ws.id,
+      planId: draft.id,
+      hash: draft.hash,
+      decision: 'approve' as const,
+    };
+    const confirmationsBefore = confirmations;
+    await assert.rejects(service.command(approval), /Commit or stash/);
+    assert.equal(confirmations, confirmationsBefore);
+    await git(ws.root, ['restore', '--staged', 'source.ts']);
+    await writeFile(source, 'export const value = 1;\n');
+    const untracked = join(ws.root, 'notes.txt');
+    await writeFile(untracked, 'Keep these local notes');
+    await assert.rejects(service.command(approval), /Commit or stash/);
+    assert.equal(service.store.get<Plan>('plans', draft.id, ws.id).state, 'draft');
+    await unlink(untracked);
+    // The untracked Graphify directory from the fixture is still allowed.
+    await service.command(approval);
+    assert.equal(service.store.get<Plan>('plans', draft.id, ws.id).state, 'approved');
+    await writeFile(source, 'export const value = 3;\n');
+    await assert.rejects(
+      service.command({ type: 'execute', workspaceId: ws.id, planId: draft.id }),
+      /Commit or stash/,
+    );
+    assert.equal(service.store.list('runs', ws.id).length, 0);
+    await writeFile(source, 'export const value = 1;\n');
+    const run = (await service.command({
+      type: 'execute',
+      workspaceId: ws.id,
+      planId: draft.id,
+    })) as Run;
+    assert.equal(run.state, 'queued');
+    // Recheck the checkout when the scheduler dispatches already-approved work.
+    await writeFile(source, 'export const value = 4;\n');
+    await service.tick();
+    await waitFor(
+      () => service.store.get<Attempt>('attempts', `${run.id}:edit`, ws.id).state === 'failed',
+    );
+    assert.match(
+      service.store.get<Attempt>('attempts', `${run.id}:edit`, ws.id).error ?? '',
+      /Commit or stash/,
     );
   } finally {
     await service.command({ type: 'shutdown' });

@@ -38,7 +38,7 @@ The graph is written inside the selected repository, never a global combined gra
 
 - Planning has only the app's bounded read/list/graph tools; shell, writes, and MCP are absent.
 - Execution requires a backend-recorded approval with a native human confirmation. IPC cannot forge an approval record. Hashes freeze the repository base, resolved agents, models, instructions, dependencies, context, MCP definitions, and limits.
-- Git checkouts must be clean before creating an execution plan (generated Graphify output is excluded). Independent tasks use detached worktrees under app data. Dependency commits and selected results are explicitly carried forward.
+- Workflow drafts can be saved with uncommitted repository changes. Git checkouts must be clean before approval and execution (generated Graphify output is excluded). Stashing changes preserves the committed base; committing changes requires a fresh draft and approval for the new base. Independent tasks use detached worktrees under app data. Dependency commits and selected results are explicitly carried forward.
 - Commands require an additional confirmation showing the exact executable, arguments, and CWD. They run with the user's OS permissions. This application is **not an OS sandbox**. Only approve commands and MCP servers you trust. In particular, project test scripts can perform arbitrary actions.
 - File tools reject traversal, protected paths, and symlinks escaping the approved worktree. Native discovery, repository hooks, undeclared delegation, skills, and shared session history are explicitly disabled in each session. The SDK's CLI credential mode retains OS keychain support; its `empty` mode forcibly disables that support in this release.
 - Each attempt has its own worker and Copilot runtime process. Account selection and runtime-owned credentials share an application identity directory; explicit session configuration determines workspace tool access. There is no implicit cross-workspace conversation sharing.
@@ -51,6 +51,16 @@ SQLite runs in a dedicated backend worker with WAL, foreign keys, transactions, 
 Context can be summarized with the planner agent; the read-only attempt, reported usage, input snapshot, and resulting handoff provenance are saved. Usage filters persist per workspace. Settings shows database size and offers a reviewed retention action: only old successful runs with integrated/no-change results qualify. Detail is pruned while run identities remain to prevent accidental replay. Runs referenced by context provenance are retained. Source/worktree files are never deleted by history cleanup.
 
 Definition exports include custom agents, workflow templates, context, and inert MCP configurations with credentials omitted and known secret values redacted. Import creates fresh IDs and preserves a mapping, archives agents, and disables connections. Select a workspace before import to explicitly map context and connection definitions to that workspace. Without a selected workspace, only global agents and workflow templates are imported. Imported workflows appear in the workflow template selector and require fresh agent resolution and approval.
+
+## Optional Headroom compression
+
+Settings includes **Headroom context compression**, disabled by default. If Headroom is already installed, start its local service with `headroom proxy --port 8787`. Set the local URL (default `http://127.0.0.1:8787`), click **Check Headroom**, enable it, and save. The app verifies the compression API before enabling; it does not install or launch Headroom automatically. See the [official Headroom setup guide](https://github.com/headroomlabs-ai/headroom/blob/main/docs/content/docs/quickstart.mdx) if it is not installed.
+
+The existing `docker-compose.yml` also exposes the Headroom proxy on local port 8787. Its MCP port 8788 is a separate integration; use the proxy port for these Settings controls.
+
+This integration calls only Headroom's local `/v1/compress` endpoint for large file reads, directory listings, and Graphify results. It does not route Copilot authentication or inference through Headroom, compress instructions, or intercept MCP/command outputs. The threshold and timeout are configurable. The app accepts only loopback base URLs and rejects redirects. The Headroom server's own configuration controls how it processes data.
+
+Configuration is frozen into each new plan's approval scope. Changing it invalidates existing approvals; create a fresh draft. On a failed request the attempt continues with original results and skips further compression calls. Compressed results instruct the agent to use `raw=true` on the same read tool when original details are needed. Run events record `headroom.compression` observations and Headroom token estimates separately from actual Copilot usage. Savings depend on the content; no fixed reduction is promised.
 
 ## MCP and authentication
 

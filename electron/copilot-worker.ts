@@ -15,7 +15,8 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { safePath, safeEnvironment, redact, approvedAppTool } from './core/policy';
 import { queryGraph } from './core/graphify';
-import type { ResolvedAgent } from '../src/shared';
+import type { ResolvedAgent, HeadroomConfig } from '../src/shared';
+import { Headroom } from './core/headroom';
 
 export type Job = {
   kind: 'catalog' | 'login' | 'attempt' | 'mcp';
@@ -26,6 +27,7 @@ export type Job = {
   prompt?: string;
   planning?: boolean;
   summarizing?: boolean;
+  headroom?: HeadroomConfig;
   timeoutMinutes?: number;
   mcp?: Record<string, MCPServerConfig>;
   mcpAction?: string;
@@ -205,42 +207,66 @@ async function main() {
     return;
   }
   const agent = job.agent!;
+  const headroom = new Headroom(
+    job.headroom,
+    (data) =>
+      send('event', {
+        id: randomUUID(),
+        type: 'headroom.compression',
+        timestamp: new Date().toISOString(),
+        data,
+      }),
+    abort.signal,
+  );
   if (!(await client.listModels()).some((m) => m.id === agent.model))
     throw new Error(`Requested model is no longer available: ${agent.model}`);
   const tools = [
     defineTool('agentic_read_file', {
       description:
         'Read a UTF-8 file inside the approved worktree. Consult agentic_graph_query first.',
-      parameters: z.object({ path: z.string() }),
-      handler: async ({ path }) => {
+      parameters: z.object({
+        path: z.string(),
+        raw: z
+          .boolean()
+          .optional()
+          .describe('Bypass optional Headroom compression to inspect the original bounded result.'),
+      }),
+      handler: async ({ path, raw }) => {
         active();
         const target = await safePath(job.root, path);
         if ((await stat(target)).size > 2 * 1024 * 1024)
           throw new Error('File exceeds the 2 MB read limit. Select a smaller source file.');
-        return (await readFile(target, 'utf8')).slice(0, 60000);
+        return headroom.compress(
+          'agentic_read_file',
+          (await readFile(target, 'utf8')).slice(0, 60000),
+          agent.model,
+          raw,
+        );
       },
     }),
     defineTool('agentic_list_files', {
       description: 'List files in a directory inside the approved worktree.',
-      parameters: z.object({ path: z.string().default('.') }),
-      handler: async ({ path }) => {
+      parameters: z.object({ path: z.string().default('.'), raw: z.boolean().optional() }),
+      handler: async ({ path, raw }) => {
         active();
-        return (await readdir(await safePath(job.root, path), { withFileTypes: true }))
+        const listing = (await readdir(await safePath(job.root, path), { withFileTypes: true }))
           .filter((e) => !e.isSymbolicLink() && !['.git', '.env', 'node_modules'].includes(e.name))
           .map((e) => `${e.isDirectory() ? 'directory' : 'file'} ${e.name}`)
           .slice(0, 500)
           .join('\n');
+        return headroom.compress('agentic_list_files', listing, agent.model, raw);
       },
     }),
     defineTool('agentic_graph_query', {
       description:
         'Find relevant code and relationships in this project Graphify graph. Verify findings against source.',
-      parameters: z.object({ query: z.string() }),
-      handler: async ({ query }) => {
+      parameters: z.object({ query: z.string(), raw: z.boolean().optional() }),
+      handler: async ({ query, raw }) => {
         active();
-        return queryGraph(job.graphRoot ?? job.root, query).catch(
+        const result = await queryGraph(job.graphRoot ?? job.root, query).catch(
           () => 'No usable Graphify graph. Inspect files directly.',
         );
+        return headroom.compress('agentic_graph_query', result, agent.model, raw);
       },
     }),
     defineTool('agentic_write_file', {

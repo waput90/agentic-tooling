@@ -75,6 +75,18 @@ export type Workspace = {
   concurrency: number;
   graph: { state: string; detail?: string; nodes?: number; updatedAt?: string };
 };
+export const headroomSchema = z.object({
+  enabled: z.boolean().default(false),
+  baseUrl: z.string().url().max(2000).default('http://127.0.0.1:8787'),
+  minCharacters: z.number().int().min(500).max(100000).default(4000),
+  timeoutMs: z.number().int().min(500).max(30000).default(5000),
+});
+export type HeadroomConfig = z.infer<typeof headroomSchema>;
+export type HeadroomStatus = {
+  state: 'unchecked' | 'available' | 'unavailable';
+  baseUrl: string;
+  detail?: string;
+};
 export type Plan = {
   id: string;
   workspaceId: string;
@@ -84,6 +96,7 @@ export type Plan = {
   tasks: (Task & { agent: ResolvedAgent; mcp: Mcp[] })[];
   limits: z.infer<typeof limitsSchema>;
   context: ContextItem[];
+  headroom?: HeadroomConfig;
   hash: string;
   state: 'draft' | 'approved' | 'rejected' | 'stale';
   createdAt: string;
@@ -145,6 +158,7 @@ export type Usage = {
   coverage: string;
 };
 export type Snapshot = {
+  headroom: { config: HeadroomConfig; status: HeadroomStatus };
   templates: WorkflowTemplate[];
   workspaces: Workspace[];
   agents: Agent[];
@@ -166,6 +180,8 @@ export type Snapshot = {
 };
 
 export const commandSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('checkHeadroom'), baseUrl: z.string().url().max(2000) }),
+  z.object({ type: z.literal('saveHeadroom'), config: headroomSchema }),
   z.object({ type: z.literal('snapshot') }),
   z.object({ type: z.literal('addWorkspace'), path: z.string().min(1) }),
   z.object({

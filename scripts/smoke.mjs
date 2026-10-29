@@ -4,6 +4,7 @@ import { mkdtemp, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 const userData = await mkdtemp(join(tmpdir(), 'agentic-smoke-'));
 const executablePath = process.env.AGENTIC_PACKAGED_EXE || electronPath;
 const launchEnv = { ...process.env, AGENTIC_USER_DATA: userData, AGENTIC_SMOKE: '1' };
@@ -24,6 +25,42 @@ try {
   assert.deepEqual(snapshot.workspaces, []);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('heading', { name: 'GitHub Copilot', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Headroom context compression', exact: true }).waitFor();
+  assert.equal(await page.getByLabel('Enable Headroom for new plans').isChecked(), false);
+  const headroomFixture = createServer(async (req, res) => {
+    let text = '';
+    for await (const chunk of req) text += chunk;
+    const body = JSON.parse(text);
+    res.setHeader('Content-Type', 'application/json');
+    res.end(
+      JSON.stringify({
+        messages: body.messages,
+        tokens_before: 10,
+        tokens_after: 10,
+        ccr_hashes: [],
+      }),
+    );
+  });
+  await new Promise((resolve) => headroomFixture.listen(0, '127.0.0.1', resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${headroomFixture.address().port}`;
+    await page.getByLabel('Headroom local URL').fill(baseUrl);
+    await page.getByLabel('Enable Headroom for new plans').check();
+    await page.getByRole('button', { name: 'Save Headroom settings', exact: true }).click();
+    await page.waitForFunction(
+      async () => (await window.desktop.request({ type: 'snapshot' })).headroom.config.enabled,
+    );
+    await page.getByLabel('Enable Headroom for new plans').uncheck();
+    await page.getByRole('button', { name: 'Save Headroom settings', exact: true }).click();
+    await page.waitForFunction(
+      async () => !(await window.desktop.request({ type: 'snapshot' })).headroom.config.enabled,
+    );
+  } finally {
+    await new Promise((resolve) => {
+      headroomFixture.close(resolve);
+      headroomFixture.closeAllConnections();
+    });
+  }
   await page.getByLabel('Appearance').selectOption('light');
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
   await page.getByLabel('Appearance').selectOption('dark');
