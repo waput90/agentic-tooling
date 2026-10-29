@@ -41,6 +41,11 @@ const icons = ['◫', '♧', '⑂', '◇', '▷', '▥', '▤', '⌘', '⚙'];
 const count = (n: number | null | undefined) =>
   n == null ? '—' : new Intl.NumberFormat().format(n);
 const time = (v: string) => new Date(v).toLocaleString();
+function attemptTaskTitle(data: Snapshot, attempt: Attempt) {
+  const run = data.runs.find((item) => item.id === attempt.runId);
+  const plan = data.plans.find((item) => item.id === run?.planId);
+  return plan?.tasks.find((task) => task.id === attempt.taskId)?.title || attempt.taskId;
+}
 function Badge({ children }: { children: ReactNode }) {
   const s = String(children);
   return (
@@ -129,16 +134,18 @@ function RunBoard({
   onSelect: (attempt: Attempt) => void;
 }) {
   if (!plan) return null;
-  const sequential =
-    plan.limits.concurrency === 1 || plan.tasks.some((task) => task.dependsOn.length > 0);
+  const hasDependencies = plan.tasks.some((task) => task.dependsOn.length > 0);
+  const sequential = plan.limits.concurrency === 1 || hasDependencies;
   return (
     <div className="mt-4">
       <div className="text-xs muted mb-3">
         {plan.tasks.length === 1
           ? 'Agent task · select the card to view details'
-          : sequential
-            ? 'Sequential handoff · arrows show dependencies'
-            : 'Parallel agents · tasks can run together'}
+          : hasDependencies
+            ? 'Dependency handoff · dependent agents receive predecessor results and committed changes'
+            : sequential
+              ? 'One at a time · independent tasks do not share previous results'
+              : 'Parallel agents · tasks can run together'}
       </div>
       <div className={`run-board ${sequential ? 'sequential' : 'parallel'}`}>
         {plan.tasks.map((task, index) => {
@@ -167,7 +174,7 @@ function RunBoard({
                 className={`agent-node ${attempt?.state === 'running' ? 'working' : ''}`}
                 disabled={!attempt}
                 onClick={() => attempt && onSelect(attempt)}
-                aria-label={`Open ${task.agent.name} task details`}
+                aria-label={`Open ${task.agent.name} task details: ${task.title}`}
               >
                 <div className="flex justify-between gap-3">
                   <strong>{task.agent.name}</strong>
@@ -183,9 +190,9 @@ function RunBoard({
                           ? '!'
                           : '◷'}
                   </span>
-                  <span>{activity}</span>
+                  <span>Task: {task.title}</span>
                 </div>
-                <div className="text-xs muted mt-2">Task: {task.title}</div>
+                <div className="text-xs muted mt-2">{activity}</div>
                 <div className="text-xs muted mt-2">
                   Model: {attempt?.reportedModel ?? attempt?.requestedModel ?? task.agent.model}
                 </div>
@@ -552,7 +559,7 @@ export function App() {
                               onClick={() => setDetail(a)}
                             >
                               <div>
-                                <div className="text-sm">{a.taskId}</div>
+                                <div className="text-sm">Task: {attemptTaskTitle(data, a)}</div>
                                 <div className="text-xs muted mt-1">
                                   {data.workspaces.find((w) => w.id === a.workspaceId)?.name} ·{' '}
                                   {a.requestedModel}
@@ -709,6 +716,7 @@ export function App() {
                         {time(run.createdAt)} ·{' '}
                         {data.workspaces.find((w) => w.id === run.workspaceId)?.name} ·{' '}
                         {run.mode === 'plan' ? 'Read-only planning' : 'Approved execution'}
+                        {run.retryOf ? ' · restarted after failure' : ''}
                       </div>
                     </div>
                     <div className="toolbar">
@@ -747,6 +755,19 @@ export function App() {
                           </Button>
                         </>
                       )}
+                      {run.state === 'failed' && run.mode === 'execute' && (
+                        <Button
+                          primary
+                          onClick={() =>
+                            void send(
+                              { type: 'restartRun', workspaceId: run.workspaceId, runId: run.id },
+                              'A new run was queued with fresh worktrees; previous results remain available.',
+                            )
+                          }
+                        >
+                          Restart failed run
+                        </Button>
+                      )}
                       {!['running', 'queued', 'paused'].includes(run.state) && (
                         <Button
                           danger
@@ -759,12 +780,19 @@ export function App() {
                             })
                           }
                         >
-                          Delete run history
+                          {attempts.some((a) => a.runId === run.id && a.diff && !a.integrated)
+                            ? 'Discard changes and delete run'
+                            : 'Delete run history'}
                         </Button>
                       )}
                     </div>
                   </div>
                   {run.error && <p className="notice error">{run.error}</p>}
+                  {run.tokenLimitApproval && (
+                    <p className="notice">
+                      Token threshold continuation was {run.tokenLimitApproval}.
+                    </p>
+                  )}
                   <RunBoard
                     run={run}
                     plan={data.plans.find((p) => p.id === run.planId)}
@@ -780,7 +808,7 @@ export function App() {
                         onClick={() => setDetail(a)}
                       >
                         <div>
-                          <div className="text-sm">{a.taskId}</div>
+                          <div className="text-sm">Task: {attemptTaskTitle(data, a)}</div>
                           <div className="text-xs muted mt-1">
                             Requested: {a.requestedModel} · Reported:{' '}
                             {a.reportedModel ?? 'not reported'} · {a.coverage} usage
@@ -846,6 +874,7 @@ export function App() {
             (r) => r.id === detail.runId && r.mode === 'plan' && r.purpose !== 'summary',
           )}
           attempt={data.attempts.find((a) => a.id === detail.id) ?? detail}
+          title={attemptTaskTitle(data, detail)}
           close={() => setDetail(undefined)}
           send={send}
         />
@@ -2151,8 +2180,8 @@ function McpDirectory({ onSelect }: { onSelect: (entry: McpDirectoryEntry) => vo
     <section className="panel mb-4">
       <h2>Find a public MCP server</h2>
       <p className="text-xs muted">
-        Search the public MCP Registry by server name. Listings are metadata, not a connection or
-        a security endorsement. Review an endpoint before saving; authentication and tool access
+        Search the public MCP Registry by server name. Listings are metadata, not a connection or a
+        security endorsement. Review an endpoint before saving; authentication and tool access
         remain separate steps. Private servers can still be added manually below.
       </p>
       <form
@@ -2170,11 +2199,18 @@ function McpDirectory({ onSelect }: { onSelect: (entry: McpDirectoryEntry) => vo
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search by name, for example figma"
         />
-        <button className="btn primary" disabled={loading || (query.trim().length > 0 && [...query.trim()].length < 3)}>
+        <button
+          className="btn primary"
+          disabled={loading || (query.trim().length > 0 && [...query.trim()].length < 3)}
+        >
           {loading ? 'Searching…' : query.trim() ? 'Search directory' : 'Browse directory'}
         </button>
       </form>
-      {error && <p className="notice error" role="alert">{error}</p>}
+      {error && (
+        <p className="notice error" role="alert">
+          {error}
+        </p>
+      )}
       {result && (
         <>
           <div className="directory-results mt-4">
@@ -2184,10 +2220,16 @@ function McpDirectory({ onSelect }: { onSelect: (entry: McpDirectoryEntry) => vo
                   <h3>{entry.title}</h3>
                   <Badge>{entry.status}</Badge>
                 </div>
-                <div className="text-xs muted break-all mt-1">{entry.name} · {entry.version}</div>
+                <div className="text-xs muted break-all mt-1">
+                  {entry.name} · {entry.version}
+                </div>
                 <p className="text-sm muted mt-2">{entry.description}</p>
                 <p className="text-xs muted break-all mt-2">
-                  {entry.remote ? `${entry.remote.transport.toUpperCase()} · ${entry.remote.endpoint}` : entry.hasPackage ? 'Package setup requires manual review' : 'No compatible remote endpoint listed'}
+                  {entry.remote
+                    ? `${entry.remote.transport.toUpperCase()} · ${entry.remote.endpoint}`
+                    : entry.hasPackage
+                      ? 'Package setup requires manual review'
+                      : 'No compatible remote endpoint listed'}
                 </p>
                 {entry.remote && entry.status === 'active' && (
                   <Button onClick={() => onSelect(entry)}>Review connection setup</Button>
@@ -2195,15 +2237,27 @@ function McpDirectory({ onSelect }: { onSelect: (entry: McpDirectoryEntry) => vo
               </div>
             ))}
           </div>
-          {!result.entries.length && <p className="notice">No public servers matched this search.</p>}
+          {!result.entries.length && (
+            <p className="notice">No public servers matched this search.</p>
+          )}
           <div className="toolbar justify-between mt-4">
-            <Button disabled={loading || page === 0} onClick={() => void load(appliedQuery, cursors[page - 1], page - 1)}>Previous</Button>
+            <Button
+              disabled={loading || page === 0}
+              onClick={() => void load(appliedQuery, cursors[page - 1], page - 1)}
+            >
+              Previous
+            </Button>
             <span className="text-xs muted">Directory page {page + 1}</span>
-            <Button disabled={loading || !result.nextCursor} onClick={() => {
-              if (!result.nextCursor) return;
-              setCursors(cursors.slice(0, page + 1).concat(result.nextCursor));
-              void load(appliedQuery, result.nextCursor, page + 1);
-            }}>Next</Button>
+            <Button
+              disabled={loading || !result.nextCursor}
+              onClick={() => {
+                if (!result.nextCursor) return;
+                setCursors(cursors.slice(0, page + 1).concat(result.nextCursor));
+                void load(appliedQuery, result.nextCursor, page + 1);
+              }}
+            >
+              Next
+            </Button>
           </div>
         </>
       )}
@@ -2235,312 +2289,344 @@ function Connections({
     [tools, setTools] = useState('');
   return (
     <>
-    <McpDirectory onSelect={(entry) => {
-      if (!entry.remote) return;
-      const suggested = (entry.name.split('/').at(-1) || 'mcp').replace(/[^\w-]/g, '-').slice(0, 100);
-      setForm({ ...initial, name: suggested, transport: entry.remote.transport, endpoint: entry.remote.endpoint });
-      setArgs('[]');
-      setTools('');
-      setSecret('');
-      document.getElementById('connection-editor')?.scrollIntoView({ behavior: 'smooth' });
-    }} />
-    <div className="grid-main">
-      <section className="panel">
-        <h2>Workspace connections</h2>
-        <p className="text-xs muted">
-          Saving never launches a server. Test or authenticate explicitly, then enable and bind
-          tools to an agent.
-        </p>
-        {data.mcp
-          .filter((m) => m.workspaceId === workspace.id)
-          .map((m) => (
-            <div className="py-5 border-b border-[var(--line)]" key={m.id}>
-              <div className="flex justify-between">
-                <h3>{m.name}</h3>
-                <Badge>
-                  {m.state === 'stopped' && !m.enabled
-                    ? 'disabled'
-                    : m.state === 'stopped' && m.lastProbe?.status === 'connected'
-                      ? 'verified'
-                      : m.state}
-                </Badge>
-              </div>
-              {m.lastProbe?.status === 'connected' && (
-                <p className="text-xs muted mt-2">
-                  Connected in the last test at {time(m.lastProbe.checkedAt)}
-                  {m.lastProbe.toolCount !== undefined
-                    ? ` · ${count(m.lastProbe.toolCount)} tools found`
-                    : ''}
-                  . The test session is closed; an approved attempt opens its own connection.
-                  {!m.enabled &&
-                    ' Enable this connection and bind its tools to an agent to use it.'}
-                </p>
-              )}
-              <p className="text-xs muted break-all">
-                {m.transport} · {m.endpoint}
-              </p>
-              {m.auth === 'oauth' &&
-                m.endpoint.replace(/\/$/, '') === 'https://mcp.figma.com/mcp' && (
-                  <p className="notice">
-                    Figma's remote MCP server restricts which clients can connect. If sign-in
-                    completes but verification still requires authentication, use a supported client
-                    or the Figma desktop server preset below. The desktop server needs Figma's
-                    desktop app running and has fewer tools.
+      <McpDirectory
+        onSelect={(entry) => {
+          if (!entry.remote) return;
+          const suggested = (entry.name.split('/').at(-1) || 'mcp')
+            .replace(/[^\w-]/g, '-')
+            .slice(0, 100);
+          setForm({
+            ...initial,
+            name: suggested,
+            transport: entry.remote.transport,
+            endpoint: entry.remote.endpoint,
+          });
+          setArgs('[]');
+          setTools('');
+          setSecret('');
+          document.getElementById('connection-editor')?.scrollIntoView({ behavior: 'smooth' });
+        }}
+      />
+      <div className="grid-main">
+        <section className="panel">
+          <h2>Workspace connections</h2>
+          <p className="text-xs muted">
+            Saving never launches a server. Test or authenticate explicitly, then enable and bind
+            tools to an agent.
+          </p>
+          {data.mcp
+            .filter((m) => m.workspaceId === workspace.id)
+            .map((m) => (
+              <div className="py-5 border-b border-[var(--line)]" key={m.id}>
+                <div className="flex justify-between">
+                  <h3>{m.name}</h3>
+                  <Badge>
+                    {m.state === 'stopped' && !m.enabled
+                      ? 'disabled'
+                      : m.state === 'stopped' && m.lastProbe?.status === 'connected'
+                        ? 'verified'
+                        : m.state}
+                  </Badge>
+                </div>
+                {m.lastProbe?.status === 'connected' && (
+                  <p className="text-xs muted mt-2">
+                    Connected in the last test at {time(m.lastProbe.checkedAt)}
+                    {m.lastProbe.toolCount !== undefined
+                      ? ` · ${count(m.lastProbe.toolCount)} tools found`
+                      : ''}
+                    . The test session is closed; an approved attempt opens its own connection.
+                    {!m.enabled &&
+                      ' Enable this connection and bind its tools to an agent to use it.'}
                   </p>
                 )}
-              <div className="toolbar">
-                <Button
-                  onClick={() => {
-                    setForm(m);
-                    setArgs(JSON.stringify(m.args));
-                    setTools(m.tools.join(', '));
-                    setSecret('');
-                  }}
-                >
-                  Edit
-                </Button>
-                <Button
-                  onClick={() =>
-                    void send({
-                      type: 'mcpAction',
-                      workspaceId: workspace.id,
-                      serverId: m.id,
-                      action: 'test',
-                    })
-                  }
-                >
-                  Test / list tools
-                </Button>
-                {m.auth === 'oauth' && (
+                <p className="text-xs muted break-all">
+                  {m.transport} · {m.endpoint}
+                </p>
+                {m.auth === 'oauth' &&
+                  m.endpoint.replace(/\/$/, '') === 'https://mcp.figma.com/mcp' && (
+                    <p className="notice">
+                      Figma's remote MCP server restricts which clients can connect. If sign-in
+                      completes but verification still requires authentication, use a supported
+                      client or the Figma desktop server preset below. The desktop server needs
+                      Figma's desktop app running and has fewer tools.
+                    </p>
+                  )}
+                <div className="toolbar">
+                  <Button
+                    onClick={() => {
+                      setForm(m);
+                      setArgs(JSON.stringify(m.args));
+                      setTools(m.tools.join(', '));
+                      setSecret('');
+                    }}
+                  >
+                    Edit
+                  </Button>
                   <Button
                     onClick={() =>
                       void send({
                         type: 'mcpAction',
                         workspaceId: workspace.id,
                         serverId: m.id,
-                        action: 'authenticate',
+                        action: 'test',
                       })
                     }
                   >
-                    Authenticate
+                    Test / list tools
                   </Button>
+                  {m.auth === 'oauth' && (
+                    <Button
+                      onClick={() =>
+                        void send({
+                          type: 'mcpAction',
+                          workspaceId: workspace.id,
+                          serverId: m.id,
+                          action: 'authenticate',
+                        })
+                      }
+                    >
+                      Authenticate
+                    </Button>
+                  )}
+                  <Button
+                    onClick={() =>
+                      void send({
+                        type: 'mcpAction',
+                        workspaceId: workspace.id,
+                        serverId: m.id,
+                        action: m.enabled ? 'disconnect' : 'enable',
+                      })
+                    }
+                  >
+                    {m.enabled ? 'Disable' : 'Enable'}
+                  </Button>
+                  <Button
+                    onClick={() =>
+                      void send({
+                        type: 'mcpAction',
+                        workspaceId: workspace.id,
+                        serverId: m.id,
+                        action: 'clear',
+                      })
+                    }
+                  >
+                    Clear app secret
+                  </Button>
+                  <Button
+                    danger
+                    onClick={() =>
+                      void send({
+                        type: 'mcpAction',
+                        workspaceId: workspace.id,
+                        serverId: m.id,
+                        action: 'delete',
+                      })
+                    }
+                  >
+                    Remove connection
+                  </Button>
+                </div>
+                {m.diagnostic && (
+                  <details>
+                    <summary>Last observed diagnostic</summary>
+                    <pre className="code">{m.diagnostic}</pre>
+                  </details>
                 )}
-                <Button
-                  onClick={() =>
-                    void send({
-                      type: 'mcpAction',
-                      workspaceId: workspace.id,
-                      serverId: m.id,
-                      action: m.enabled ? 'disconnect' : 'enable',
-                    })
-                  }
-                >
-                  {m.enabled ? 'Disable' : 'Enable'}
-                </Button>
-                <Button
-                  onClick={() =>
-                    void send({
-                      type: 'mcpAction',
-                      workspaceId: workspace.id,
-                      serverId: m.id,
-                      action: 'clear',
-                    })
-                  }
-                >
-                  Clear app secret
-                </Button>
-                <Button
-                  danger
-                  onClick={() =>
-                    void send({
-                      type: 'mcpAction',
-                      workspaceId: workspace.id,
-                      serverId: m.id,
-                      action: 'delete',
-                    })
-                  }
-                >
-                  Remove connection
-                </Button>
               </div>
-              {m.diagnostic && (
-                <details>
-                  <summary>Last observed diagnostic</summary>
-                  <pre className="code">{m.diagnostic}</pre>
-                </details>
-              )}
-            </div>
-          ))}
-        {!data.mcp.some((m) => m.workspaceId === workspace.id) && (
-          <Empty title="No connections configured">
-            Connect an existing local MCP executable or an HTTPS endpoint.
-          </Empty>
-        )}
-      </section>
-      <section className="panel" id="connection-editor">
-        <h2>{form.id ? 'Edit connection' : 'Add connection'}</h2>
-        <div className="toolbar mt-3 mb-4">
-          <Button
-            onClick={() => {
-              const existing = data.mcp.find(
-                (connection) =>
-                  connection.workspaceId === workspace.id && connection.name === 'figma-desktop',
-              );
-              setForm(
-                existing ?? {
-                  ...initial,
-                  name: 'figma-desktop',
-                  transport: 'http',
-                  endpoint: 'http://127.0.0.1:3845/mcp',
-                  auth: 'none',
-                },
-              );
-              setArgs(JSON.stringify(existing?.args ?? []));
-              setTools(existing?.tools.join(', ') ?? '');
-              setSecret('');
-            }}
-          >
-            Use Figma desktop preset
-          </Button>
-        </div>
-        {form.name === 'figma-desktop' && form.endpoint === 'http://127.0.0.1:3845/mcp' && (
-          <p className="notice">
-            Open a Figma Design file in the Figma desktop app, turn on Dev Mode, and enable its
-            desktop MCP server. Save this connection, test it, select only the tools your agent
-            needs, then enable and bind it. Figma requires an eligible Dev or Full seat for its
-            desktop server.
-          </p>
-        )}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            let parsed: string[];
-            try {
-              parsed = JSON.parse(args);
-              if (!Array.isArray(parsed) || parsed.some((x) => typeof x !== 'string'))
-                throw new Error();
-            } catch {
-              window.alert('Arguments must be a JSON array of strings.');
-              return;
-            }
-            void send(
-              {
-                type: 'saveMcp',
-                workspaceId: workspace.id,
-                server: {
-                  ...form,
-                  args: parsed,
-                  tools: tools
-                    .split(',')
-                    .map((s) => s.trim())
-                    .filter(Boolean),
-                } as Mcp,
-                secret: secret || undefined,
-              },
-              'Connection saved without launching.',
-            ).then(() => setSecret(''));
-          }}
-        >
-          <Field label="Connection name">
-            <input
-              required
-              pattern="[\w-]+"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
-          </Field>
-          <Field label="Transport">
-            <select
-              value={form.transport}
-              onChange={(e) => setForm({ ...form, transport: e.target.value as Mcp['transport'] })}
-            >
-              <option value="stdio">Local executable (stdio)</option>
-              <option value="http">Streamable HTTP</option>
-              <option value="sse">Legacy SSE</option>
-            </select>
-          </Field>
-          <Field
-            label={form.transport === 'stdio' ? 'Executable (no shell string)' : 'Endpoint URL'}
-          >
-            <input
-              required
-              value={form.endpoint}
-              onChange={(e) => setForm({ ...form, endpoint: e.target.value })}
-            />
-          </Field>
-          {form.transport === 'stdio' && (
-            <Field label="Arguments (JSON array)">
-              <textarea
-                rows={2}
-                value={args}
-                onChange={(e) => setArgs(e.target.value)}
-                placeholder={'["C:/tools/server.js"]'}
-              />
-            </Field>
+            ))}
+          {!data.mcp.some((m) => m.workspaceId === workspace.id) && (
+            <Empty title="No connections configured">
+              Connect an existing local MCP executable or an HTTPS endpoint.
+            </Empty>
           )}
-          <Field label="Authentication">
-            <select
-              value={form.auth}
-              onChange={(e) => setForm({ ...form, auth: e.target.value as Mcp['auth'] })}
-            >
-              <option value="none">None</option>
-              <option value="bearer">Bearer token</option>
-              <option value="api-key">API key</option>
-              <option value="oauth">Runtime-managed OAuth</option>
-            </select>
-          </Field>
-          {['bearer', 'api-key'].includes(form.auth ?? '') && (
-            <>
-              <Field
-                label={form.transport === 'stdio' ? 'Environment variable name' : 'Header name'}
-              >
-                <input
-                  value={form.secretName}
-                  onChange={(e) => setForm({ ...form, secretName: e.target.value })}
-                />
-              </Field>
-              <Field label="Secret (stored with OS protection)">
-                <input
-                  type="password"
-                  autoComplete="off"
-                  value={secret}
-                  onChange={(e) => setSecret(e.target.value)}
-                  placeholder={form.secretRef ? 'Saved secret ••••••••' : 'Enter secret'}
-                />
-              </Field>
-            </>
-          )}
-          <Field label="Allowed tools (comma separated, empty grants none)">
-            <input value={tools} onChange={(e) => setTools(e.target.value)} />
-          </Field>
-          <label className="flex gap-2 items-center text-xs my-4">
-            <input
-              type="checkbox"
-              checked={form.enabled}
-              onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
-            />
-            Enable for explicit agent bindings
-          </label>
-          <div className="toolbar">
-            <button className="btn primary">Save connection</button>
+        </section>
+        <section className="panel" id="connection-editor">
+          <h2>{form.id ? 'Edit connection' : 'Add connection'}</h2>
+          <div className="toolbar mt-3 mb-4">
             <Button
               onClick={() => {
-                setForm(initial);
-                setArgs('[]');
-                setTools('');
+                const existing = data.mcp.find(
+                  (connection) =>
+                    connection.workspaceId === workspace.id && connection.name === 'figma-desktop',
+                );
+                setForm(
+                  existing ?? {
+                    ...initial,
+                    name: 'figma-desktop',
+                    transport: 'http',
+                    endpoint: 'http://127.0.0.1:3845/mcp',
+                    auth: 'none',
+                  },
+                );
+                setArgs(JSON.stringify(existing?.args ?? []));
+                setTools(existing?.tools.join(', ') ?? '');
                 setSecret('');
               }}
             >
-              New
+              Use Figma desktop preset
             </Button>
           </div>
-        </form>
-        <p className="text-xs muted mt-5">
-          Copilot sign-in and MCP authentication are separate. Figma access depends on its supported
-          client and account policy.
-        </p>
-      </section>
-    </div>
+          {form.name === 'figma-desktop' && form.endpoint === 'http://127.0.0.1:3845/mcp' && (
+            <p className="notice">
+              Open a Figma Design file in the Figma desktop app, turn on Dev Mode, and enable its
+              desktop MCP server. Save this connection, test it, select only the tools your agent
+              needs, then enable and bind it. Figma requires an eligible Dev or Full seat for its
+              desktop server.
+            </p>
+          )}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const authenticate =
+                (e.nativeEvent as SubmitEvent).submitter?.getAttribute('data-authenticate') ===
+                'true';
+              let parsed: string[];
+              try {
+                parsed = JSON.parse(args);
+                if (!Array.isArray(parsed) || parsed.some((x) => typeof x !== 'string'))
+                  throw new Error();
+              } catch {
+                window.alert('Arguments must be a JSON array of strings.');
+                return;
+              }
+              void send(
+                {
+                  type: 'saveMcp',
+                  workspaceId: workspace.id,
+                  server: {
+                    ...form,
+                    args: parsed,
+                    tools: tools
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  } as Mcp,
+                  secret: secret || undefined,
+                },
+                authenticate ? undefined : 'Connection saved without launching.',
+              ).then((saved) => {
+                if (!saved) return;
+                setSecret('');
+                if (authenticate)
+                  return send(
+                    {
+                      type: 'mcpAction',
+                      workspaceId: workspace.id,
+                      serverId: (saved as Mcp).id,
+                      action: 'authenticate',
+                    },
+                    'Authentication attempt finished. Check the saved connection status.',
+                  );
+              });
+            }}
+          >
+            <Field label="Connection name">
+              <input
+                required
+                pattern="[\w-]+"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </Field>
+            <Field label="Transport">
+              <select
+                value={form.transport}
+                onChange={(e) =>
+                  setForm({ ...form, transport: e.target.value as Mcp['transport'] })
+                }
+              >
+                <option value="stdio">Local executable (stdio)</option>
+                <option value="http">Streamable HTTP</option>
+                <option value="sse">Legacy SSE</option>
+              </select>
+            </Field>
+            <Field
+              label={form.transport === 'stdio' ? 'Executable (no shell string)' : 'Endpoint URL'}
+            >
+              <input
+                required
+                value={form.endpoint}
+                onChange={(e) => setForm({ ...form, endpoint: e.target.value })}
+              />
+            </Field>
+            {form.transport === 'stdio' && (
+              <Field label="Arguments (JSON array)">
+                <textarea
+                  rows={2}
+                  value={args}
+                  onChange={(e) => setArgs(e.target.value)}
+                  placeholder={'["C:/tools/server.js"]'}
+                />
+              </Field>
+            )}
+            <Field label="Authentication">
+              <select
+                value={form.auth}
+                onChange={(e) => setForm({ ...form, auth: e.target.value as Mcp['auth'] })}
+              >
+                <option value="none">None</option>
+                <option value="bearer">Bearer token</option>
+                <option value="api-key">API key</option>
+                <option value="oauth">Runtime-managed OAuth</option>
+              </select>
+            </Field>
+            {['bearer', 'api-key'].includes(form.auth ?? '') && (
+              <>
+                <Field
+                  label={form.transport === 'stdio' ? 'Environment variable name' : 'Header name'}
+                >
+                  <input
+                    value={form.secretName}
+                    onChange={(e) => setForm({ ...form, secretName: e.target.value })}
+                  />
+                </Field>
+                <Field label="Secret (stored with OS protection)">
+                  <input
+                    type="password"
+                    autoComplete="off"
+                    value={secret}
+                    onChange={(e) => setSecret(e.target.value)}
+                    placeholder={form.secretRef ? 'Saved secret ••••••••' : 'Enter secret'}
+                  />
+                </Field>
+              </>
+            )}
+            <Field label="Allowed tools (comma separated, empty grants none)">
+              <input value={tools} onChange={(e) => setTools(e.target.value)} />
+            </Field>
+            <label className="flex gap-2 items-center text-xs my-4">
+              <input
+                type="checkbox"
+                checked={form.enabled}
+                onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
+              />
+              Enable for explicit agent bindings
+            </label>
+            <div className="toolbar">
+              <button className="btn primary">Save connection</button>
+              {form.auth === 'oauth' && (
+                <button className="btn" type="submit" data-authenticate="true">
+                  Save and authenticate
+                </button>
+              )}
+              <Button
+                onClick={() => {
+                  setForm(initial);
+                  setArgs('[]');
+                  setTools('');
+                  setSecret('');
+                }}
+              >
+                New
+              </Button>
+            </div>
+          </form>
+          <p className="text-xs muted mt-5">
+            Copilot sign-in and MCP authentication are separate. Figma access depends on its
+            supported client and account policy.
+          </p>
+        </section>
+      </div>
     </>
   );
 }
@@ -2584,6 +2670,12 @@ function Settings({
     setModel(workspace?.model ?? '');
     setCap(workspace?.concurrency ?? 2);
   }, [workspace?.id]);
+  const observed = data.usage.filter((row) => row.kind === 'delta');
+  const observedTokens = observed.some((row) => row.input !== null || row.output !== null)
+    ? observed.reduce((total, row) => total + (row.input ?? 0) + (row.output ?? 0), 0)
+    : null;
+  const quota = data.runtime.quota;
+  const quotaEntries = Object.entries(quota?.snapshots ?? {});
   return (
     <div className="grid-main">
       <div className="stack">
@@ -2610,6 +2702,42 @@ function Settings({
             Runtime: {data.runtime.version ?? 'not checked'} · {data.runtime.models.length}{' '}
             available models
           </div>
+          <h3 className="mt-4">Usage and allowance</h3>
+          <div className="metrics">
+            <div className="panel metric">
+              <div className="eyebrow">Tokens observed in this app</div>
+              <strong>{count(observedTokens)}</strong>
+              <div className="text-xs muted">All workspaces · reported input and output deltas</div>
+            </div>
+            {quotaEntries.map(([key, snapshot]) => (
+              <div className="panel metric" key={key}>
+                <div className="eyebrow">{key.replaceAll('_', ' ')} · requests</div>
+                <strong>
+                  {snapshot.isUnlimitedEntitlement || snapshot.entitlementRequests === -1
+                    ? 'Unlimited allowance'
+                    : `${count(Math.max(0, snapshot.entitlementRequests - snapshot.usedRequests))} remaining`}
+                </strong>
+                <div className="text-xs muted">
+                  {count(snapshot.usedRequests)} used
+                  {snapshot.entitlementRequests >= 0
+                    ? ` of ${count(snapshot.entitlementRequests)} included`
+                    : ''}
+                  {snapshot.resetDate ? ` · resets ${time(snapshot.resetDate)}` : ''}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs muted">
+            Copilot does not provide a remaining token balance here. Account allowance is reported
+            in requests; observed tokens cover only this app and may omit usage the runtime did not
+            report. {quota?.checkedAt ? `Account quota checked ${time(quota.checkedAt)}.` : ''}
+          </p>
+          {data.runtime.state === 'connected' && quotaEntries.length === 0 && (
+            <p className="notice">
+              Account quota is unavailable{quota?.error ? `: ${quota.error}` : '.'} Refresh the
+              connection to try again.
+            </p>
+          )}
           <details>
             <summary>Available models</summary>
             <pre className="code">
@@ -2802,11 +2930,46 @@ function Settings({
             Start your installed service with <code>headroom proxy --port 8787</code>, then check
             and enable it here. Saving checks availability before enabling. Existing plans keep
             their configuration and require renewed approval after changes. Compression observations
-            appear in run events; they are separate from Copilot usage.
+            appear in run events; they are separate from Copilot usage. Headroom is optional: if it
+            is absent or stops responding during a run, the agent receives the original tool result
+            and continues.
           </p>
         </section>
         <section className="panel">
           <h2>Application preferences</h2>
+          <p className="text-xs muted">
+            Automatic approvals are off by default. Enabling either option requires native
+            confirmation. Command execution, MCP access, and result integration still ask
+            separately.
+          </p>
+          <label className="flex gap-2 items-center text-sm my-4">
+            <input
+              type="checkbox"
+              checked={data.settings.autoApprovePlans}
+              onChange={(e) =>
+                void send({
+                  type: 'settings',
+                  ...data.settings,
+                  autoApprovePlans: e.target.checked,
+                })
+              }
+            />
+            Automatically approve verified workflow plans
+          </label>
+          <label className="flex gap-2 items-center text-sm my-4">
+            <input
+              type="checkbox"
+              checked={data.settings.autoContinueTokens}
+              onChange={(e) =>
+                void send({
+                  type: 'settings',
+                  ...data.settings,
+                  autoContinueTokens: e.target.checked,
+                })
+              }
+            />
+            Automatically continue when observed tokens pass the plan threshold
+          </label>
           <Field label="Global concurrent agent limit">
             <input
               type="number"
@@ -2862,11 +3025,13 @@ function Settings({
 }
 function AttemptDetails({
   attempt,
+  title,
   close,
   send,
   canDraft,
 }: {
   attempt: Attempt;
+  title: string;
   close: () => void;
   send: Send;
   canDraft?: boolean;
@@ -2883,7 +3048,7 @@ function AttemptDetails({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between">
-          <h2>{attempt.taskId}</h2>
+          <h2>{title}</h2>
           <Button onClick={close}>Close</Button>
         </div>
         <div className="toolbar">

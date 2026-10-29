@@ -229,6 +229,11 @@ select option {
 .guide-step .accent {
   min-width: 32px;
 }
+.directory-results {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
 .run-board {
   display: flex;
   flex-wrap: wrap;
@@ -530,6 +535,9 @@ details > summary {
   }
   .guide-steps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .directory-results {
+    grid-template-columns: 1fr;
   }
 }
 @media (prefers-reduced-motion: reduce) {

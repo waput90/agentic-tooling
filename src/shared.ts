@@ -123,6 +123,8 @@ export type Run = {
   createdAt: string;
   error?: string;
   tokenLimitApproved?: boolean;
+  tokenLimitApproval?: 'manual' | 'automatic';
+  retryOf?: string;
   deleted?: boolean;
 };
 export type Attempt = {
@@ -182,13 +184,33 @@ export type Snapshot = {
   mcp: (Mcp & { workspaceId: string })[];
   context: (ContextItem & { workspaceId: string })[];
   usage: Usage[];
-  settings: { globalConcurrency: number; selectedWorkspace: string; theme: 'dark' | 'light' };
+  settings: {
+    globalConcurrency: number;
+    selectedWorkspace: string;
+    theme: 'dark' | 'light';
+    autoApprovePlans: boolean;
+    autoContinueTokens: boolean;
+  };
   runtime: {
     state: string;
     version?: string;
     login?: string;
     error?: string;
     models: { id: string; name: string }[];
+    quota?: {
+      checkedAt: string;
+      snapshots: Record<
+        string,
+        {
+          entitlementRequests: number;
+          usedRequests: number;
+          remainingPercentage: number;
+          isUnlimitedEntitlement: boolean;
+          resetDate?: string;
+        }
+      >;
+      error?: string;
+    };
   };
   update?: { state: string; version?: string; detail?: string };
 };
@@ -231,6 +253,7 @@ export const commandSchema = z.discriminatedUnion('type', [
     decision: z.enum(['approve', 'reject']),
   }),
   z.object({ type: z.literal('execute'), workspaceId: id, planId: id }),
+  z.object({ type: z.literal('restartRun'), workspaceId: id, runId: id }),
   z.object({
     type: z.literal('plan'),
     workspaceId: id,
@@ -297,6 +320,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     globalConcurrency: z.number().int().min(1).max(16),
     selectedWorkspace: z.string(),
     theme: z.enum(['dark', 'light']),
+    autoApprovePlans: z.boolean().optional(),
+    autoContinueTokens: z.boolean().optional(),
   }),
   z.object({ type: z.literal('backup'), path: z.string().min(1) }),
   z.object({ type: z.literal('export') }),

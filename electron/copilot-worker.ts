@@ -60,6 +60,49 @@ const client = new CopilotClient({
   useLoggedInUser: true,
   logLevel: 'error',
 });
+async function accountQuota() {
+  const checkedAt = new Date().toISOString();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const result = await Promise.race([
+      client.rpc.account.getQuota({}),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('Quota request timed out')), 8000);
+      }),
+    ]);
+    const snapshots: Record<
+      string,
+      {
+        entitlementRequests: number;
+        usedRequests: number;
+        remainingPercentage: number;
+        isUnlimitedEntitlement: boolean;
+        resetDate?: string;
+      }
+    > = {};
+    for (const [key, value] of Object.entries(result.quotaSnapshots ?? {})) {
+      if (!value || !/^[a-z_]{1,40}$/.test(key)) continue;
+      if (
+        ![value.entitlementRequests, value.usedRequests, value.remainingPercentage].every(
+          Number.isFinite,
+        )
+      )
+        continue;
+      snapshots[key] = {
+        entitlementRequests: value.entitlementRequests,
+        usedRequests: value.usedRequests,
+        remainingPercentage: value.remainingPercentage,
+        isUnlimitedEntitlement: value.isUnlimitedEntitlement,
+        ...(value.resetDate ? { resetDate: value.resetDate } : {}),
+      };
+    }
+    return { checkedAt, snapshots };
+  } catch (error) {
+    return { checkedAt, snapshots: {}, error: (error as Error).message };
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
 let session: CopilotSession | undefined,
   cancelled = false;
 let loginFlowId: string | undefined;
@@ -152,6 +195,7 @@ async function main() {
         version: status.version,
         login: auth.login,
         models: models.map((m) => ({ id: m.id, name: m.name })),
+        quota: auth.isAuthenticated ? await accountQuota() : undefined,
       });
     } finally {
       await session.rpc.accounts.login.cancel({ flowId: flow.flowId }).catch(() => {});
@@ -166,6 +210,7 @@ async function main() {
       version: status.version,
       login: auth.login,
       models: models.map((m) => ({ id: m.id, name: m.name })),
+      quota: auth.isAuthenticated ? await accountQuota() : undefined,
       error: auth.isAuthenticated
         ? undefined
         : 'Sign in with copilot or gh auth login, then refresh.',

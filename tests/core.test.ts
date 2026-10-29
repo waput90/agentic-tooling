@@ -10,6 +10,7 @@ import { captureUsage, usageTotal } from '../electron/core/usage';
 import { Graphify } from '../electron/core/graphify';
 import { git, worktree, snapshotChanges } from '../electron/core/git';
 import { Service } from '../electron/core/service';
+import { parseMcpDirectory, searchMcpDirectory } from '../electron/core/mcp-directory';
 import type { Agent, Attempt, Mcp, Plan, Run, Task, Usage, Workspace } from '../src/shared';
 
 const temp = () => mkdtemp(join(tmpdir(), 'agentic-test-'));
@@ -356,6 +357,7 @@ test('fair scheduling overlaps two repositories, honors cap and dependency order
     await waitFor(() => started.length === 4);
     for (const a of service.store.list<Attempt>('attempts').filter((a) => a.taskId === 'b')) {
       assert.match(a.context!, /Result a/);
+      assert.match(a.context!, /"title":"a"/);
       assert.equal(await readFile(join(a.worktree!, 'a.txt'), 'utf8'), 'result');
     }
     for (const resolve of gates.values()) resolve();
@@ -482,6 +484,73 @@ test('MCP test records verified availability after its connection closes', async
     await service.command({ type: 'shutdown' });
     service.store.close();
   }
+});
+
+test('public MCP directory is read-only and only offers concrete HTTPS remotes for setup', async () => {
+  const fixture = {
+    servers: [
+      {
+        server: {
+          name: 'com.example/remote',
+          title: 'Remote',
+          description: 'A tool server',
+          version: '1.2.3',
+          remotes: [{ type: 'streamable-http', url: 'https://example.com/mcp' }],
+        },
+        _meta: { 'io.modelcontextprotocol.registry/official': { status: 'active' } },
+      },
+      {
+        server: {
+          name: 'com.example/package',
+          description: 'Package server',
+          version: '2.0',
+          packages: [{ registryType: 'npm' }],
+        },
+      },
+      {
+        server: {
+          name: 'com.example/templated',
+          description: 'Needs variables',
+          version: '1.0',
+          remotes: [{ type: 'streamable-http', url: 'https://example.com/{workspace}' }],
+        },
+      },
+      {
+        server: {
+          name: 'com.example/headers',
+          description: 'Needs headers',
+          version: '1.0',
+          remotes: [
+            {
+              type: 'streamable-http',
+              url: 'https://example.com/mcp',
+              headers: [{ name: 'Authorization' }],
+            },
+          ],
+        },
+      },
+    ],
+    metadata: { nextCursor: 'next-page' },
+  };
+  const parsed = parseMcpDirectory(fixture);
+  assert.equal(parsed.entries[0].remote?.endpoint, 'https://example.com/mcp');
+  assert.equal(parsed.entries[1].hasPackage, true);
+  assert.equal(parsed.entries[1].remote, undefined);
+  assert.equal(parsed.entries[2].remote, undefined);
+  assert.equal(parsed.entries[3].remote, undefined);
+  assert.equal(parsed.nextCursor, 'next-page');
+  let requested = '';
+  const request = (async (input: string | URL | Request, init?: RequestInit) => {
+    requested = String(input);
+    assert.equal(init?.redirect, 'error');
+    return Response.json(fixture);
+  }) as typeof fetch;
+  const result = await searchMcpDirectory('remote', 'next-page', request);
+  assert.equal(result.entries.length, 4);
+  assert.match(requested, /search=remote/);
+  assert.match(requested, /version=latest/);
+  assert.match(requested, /cursor=next-page/);
+  await assert.rejects(searchMcpDirectory('ab', undefined, request), /three characters/);
 });
 
 test('Figma remote OAuth failure explains supported-client and desktop options', async () => {
@@ -646,6 +715,112 @@ test('token threshold pauses once and requires explicit native continuation', as
   }
 });
 
+test('opt-in approval verifies plans, continues past token threshold, and restarts only failed runs', async () => {
+  const confirms: string[] = [];
+  const service = new Service(
+    await temp(),
+    () => {},
+    async (action, value) => {
+      if (action === 'confirm') confirms.push((value as { title: string }).title);
+      return true;
+    },
+    async () => {
+      throw new Error('Fixture execution failed');
+    },
+  );
+  try {
+    service.runtime = { state: 'connected', models: [{ id: 'model-a', name: 'A' }] };
+    await service.command({
+      type: 'settings',
+      globalConcurrency: 2,
+      selectedWorkspace: 'all',
+      theme: 'dark',
+      autoApprovePlans: true,
+      autoContinueTokens: true,
+    });
+    await service.command({ type: 'saveAgent', agent: { ...custom, id: undefined } });
+    const ws = (await service.command({ type: 'addWorkspace', path: await repo() })) as Workspace;
+    await service.graphify.ensure(ws.id, ws.root);
+    const plan = (await service.command({
+      type: 'savePlan',
+      workspaceId: ws.id,
+      title: 'Retryable',
+      tasks: [task('a')],
+      limits: { ...limits, maxTokens: 1 },
+    })) as Plan;
+    assert.equal(plan.state, 'approved');
+    assert.ok(confirms.includes('Enable automatic approvals'));
+    assert.ok(!confirms.includes('Approve execution scope'));
+    await writeFile(join(ws.root, 'source.ts'), 'export const value = 2;\n');
+    const dirty = (await service.command({
+      type: 'savePlan',
+      workspaceId: ws.id,
+      title: 'Needs a clean base',
+      tasks: [task('a')],
+      limits,
+    })) as Plan;
+    assert.equal(dirty.state, 'draft');
+    await writeFile(join(ws.root, 'source.ts'), 'export const value = 1;\n');
+    const first = (await service.command({
+      type: 'execute',
+      workspaceId: ws.id,
+      planId: plan.id,
+    })) as Run;
+    await assert.rejects(
+      service.command({ type: 'restartRun', workspaceId: ws.id, runId: first.id }),
+      /Only a failed execution/,
+    );
+    await service.tick();
+    await waitFor(
+      () => service.store.get<Attempt>('attempts', `${first.id}:a`, ws.id).state === 'failed',
+    );
+    await service.tick();
+    assert.equal(service.store.get<Run>('runs', first.id, ws.id).state, 'failed');
+    const retry = (await service.command({
+      type: 'restartRun',
+      workspaceId: ws.id,
+      runId: first.id,
+    })) as Run;
+    assert.equal(retry.retryOf, first.id);
+    assert.equal(service.store.get<Run>('runs', first.id, ws.id).state, 'failed');
+    assert.equal(service.store.get<Attempt>('attempts', `${retry.id}:a`, ws.id).state, 'queued');
+    service.store.put(
+      'usage',
+      'retry-usage',
+      {
+        id: 'retry-usage',
+        workspaceId: ws.id,
+        runId: retry.id,
+        attemptId: `${retry.id}:a`,
+        taskId: 'a',
+        agentId: 'custom-dev',
+        sessionId: 'fixture',
+        model: 'model-a',
+        input: 2,
+        output: 0,
+        reasoning: null,
+        cacheRead: null,
+        cacheWrite: null,
+        timestamp: new Date().toISOString(),
+        kind: 'delta',
+        coverage: 'observed',
+      } satisfies Usage,
+      ws.id,
+    );
+    await service.tick();
+    assert.equal(service.store.get<Run>('runs', retry.id, ws.id).tokenLimitApproved, true);
+    assert.equal(service.store.get<Run>('runs', retry.id, ws.id).tokenLimitApproval, 'automatic');
+    assert.ok(!confirms.includes('Continue past token threshold?'));
+    await waitFor(
+      () => service.store.get<Attempt>('attempts', `${retry.id}:a`, ws.id).state === 'failed',
+    );
+    await service.tick();
+  } finally {
+    await service.command({ type: 'shutdown' });
+    service.store.close();
+  }
+});
+
 test('editing approval steps creates a fresh draft and retires the old hash', async () => {
   const service = new Service(
     await temp(),
@@ -713,8 +888,9 @@ test('editing approval steps creates a fresh draft and retires the old hash', as
 });
 
 test('history deletion removes detail while keeping replay-blocking run identity', async () => {
+  const dataDir = await temp();
   const service = new Service(
-    await temp(),
+    dataDir,
     () => {},
     async () => true,
   );
@@ -737,6 +913,9 @@ test('history deletion removes detail while keeping replay-blocking run identity
     } as Run;
     service.store.put('plans', plan.id, plan, ws.id);
     service.store.put('runs', run.id, run, ws.id);
+    const resultTree = join(dataDir, 'worktrees', run.id, 'task');
+    await worktree(ws.root, resultTree, await git(ws.root, ['rev-parse', 'HEAD']));
+    await writeFile(join(resultTree, 'unreviewed.txt'), 'Discard this result');
     service.store.put(
       'attempts',
       'history-attempt',
@@ -745,7 +924,10 @@ test('history deletion removes detail while keeping replay-blocking run identity
         workspaceId: ws.id,
         runId: run.id,
         state: 'succeeded',
-        integrated: true,
+        taskId: 'task',
+        diff: 'unreviewed changes',
+        worktree: resultTree,
+        integrated: false,
       },
       ws.id,
     );
@@ -761,6 +943,14 @@ test('history deletion removes detail while keeping replay-blocking run identity
       { id: 'history-usage', workspaceId: ws.id, runId: run.id, taskId: 'task', kind: 'delta' },
       ws.id,
     );
+    const attempt = service.store.get<Attempt>('attempts', 'history-attempt', ws.id);
+    service.store.put('attempts', attempt.id, { ...attempt, worktree: ws.root }, ws.id);
+    await assert.rejects(
+      service.command({ type: 'deleteHistory', workspaceId: ws.id, kind: 'run', recordId: run.id }),
+      /outside its owned directory/,
+    );
+    assert.equal(await readFile(join(resultTree, 'unreviewed.txt'), 'utf8'), 'Discard this result');
+    service.store.put('attempts', attempt.id, attempt, ws.id);
     await service.command({
       type: 'deleteHistory',
       workspaceId: ws.id,
@@ -771,6 +961,8 @@ test('history deletion removes detail while keeping replay-blocking run identity
     assert.equal(service.store.list('attempts', ws.id).length, 0);
     assert.equal(service.store.list('events', ws.id).length, 0);
     assert.equal(service.store.list('usage', ws.id).length, 0);
+    await assert.rejects(readFile(join(resultTree, 'unreviewed.txt'), 'utf8'));
+    assert.equal(await readFile(join(ws.root, 'source.ts'), 'utf8'), 'export const value = 1;\n');
     await service.command({
       type: 'deleteHistory',
       workspaceId: ws.id,

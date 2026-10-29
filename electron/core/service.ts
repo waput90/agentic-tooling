@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { Worker } from 'node:worker_threads';
-import { join } from 'node:path';
-import { mkdir, stat } from 'node:fs/promises';
+import { join, resolve, relative } from 'node:path';
+import { mkdir, stat, realpath } from 'node:fs/promises';
 import type { MCPServerConfig } from '@github/copilot-sdk';
 import {
   agentSchema,
@@ -26,7 +26,7 @@ import {
   type WorkflowTemplate,
 } from '../../src/shared';
 import { Store } from './store';
-import { hash, redact, validateDag, prerequisiteOrder } from './policy';
+import { hash, redact, validateDag, prerequisiteOrder, contained } from './policy';
 import { baseline, git, repository, snapshotChanges, worktree } from './git';
 import { discover, resolveAgent } from './agents';
 import { Graphify } from './graphify';
@@ -96,9 +96,22 @@ export class Service {
   }
   settings(): Snapshot['settings'] {
     try {
-      return this.store.get<Snapshot['settings']>('settings', 'app');
+      const stored = this.store.get<Partial<Snapshot['settings']>>('settings', 'app');
+      return {
+        globalConcurrency: stored.globalConcurrency ?? 3,
+        selectedWorkspace: stored.selectedWorkspace ?? 'all',
+        theme: stored.theme ?? 'dark',
+        autoApprovePlans: stored.autoApprovePlans ?? false,
+        autoContinueTokens: stored.autoContinueTokens ?? false,
+      };
     } catch {
-      return { globalConcurrency: 3, selectedWorkspace: 'all', theme: 'dark' };
+      return {
+        globalConcurrency: 3,
+        selectedWorkspace: 'all',
+        theme: 'dark',
+        autoApprovePlans: false,
+        autoContinueTokens: false,
+      };
     }
   }
   snapshot(): Snapshot {
@@ -313,6 +326,67 @@ export class Service {
         });
         return run;
       }
+      case 'restartRun': {
+        const previous = this.store.get<Run>('runs', c.runId, c.workspaceId);
+        if (previous.deleted || previous.mode !== 'execute' || previous.state !== 'failed')
+          throw new Error('Only a failed execution can be restarted.');
+        const plan = this.store.get<Plan>('plans', previous.planId, c.workspaceId);
+        if (plan.deleted || plan.state !== 'approved')
+          throw new Error('The original plan is no longer approved. Create a fresh draft.');
+        if (
+          this.store
+            .list<Run>('runs', c.workspaceId)
+            .some((r) => r.planId === plan.id && ['queued', 'running', 'paused'].includes(r.state))
+        )
+          throw new Error('This plan already has an active run.');
+        await this.verify(plan);
+        if (
+          !this.store
+            .list<{ planId: string; hash: string; decision: string }>('approvals', c.workspaceId)
+            .some((a) => a.planId === plan.id && a.hash === plan.hash && a.decision === 'approve')
+        )
+          throw new Error('Approval record missing or revoked.');
+        if (
+          !(await this.host('confirm', {
+            title: 'Restart failed execution',
+            detail: `Repository: ${this.ws(c.workspaceId).root}\nPlan: ${plan.title}\nHash: ${plan.hash}\nAll ${plan.tasks.length} tasks will run again in new worktrees. Previous results remain for review, and Copilot usage may increase.`,
+          }))
+        )
+          throw new Error('Restart cancelled');
+        await this.verify(plan);
+        const current = this.store.get<Run>('runs', c.runId, c.workspaceId);
+        if (
+          current.state !== 'failed' ||
+          this.store.get<Plan>('plans', plan.id, c.workspaceId).state !== 'approved'
+        )
+          throw new Error('Run or approval changed during restart.');
+        if (
+          this.store
+            .list<Run>('runs', c.workspaceId)
+            .some((r) => r.planId === plan.id && ['queued', 'running', 'paused'].includes(r.state))
+        )
+          throw new Error('This plan already has an active run.');
+        const run: Run = {
+          id: randomUUID(),
+          workspaceId: c.workspaceId,
+          planId: plan.id,
+          state: 'queued',
+          mode: 'execute',
+          createdAt: new Date().toISOString(),
+          retryOf: previous.id,
+        };
+        this.store.transaction(() => {
+          this.store.put('runs', run.id, run, c.workspaceId);
+          for (const task of plan.tasks)
+            this.store.put(
+              'attempts',
+              `${run.id}:${task.id}`,
+              this.newAttempt(run, task),
+              c.workspaceId,
+            );
+        });
+        return run;
+      }
       case 'plan': {
         const ws = this.ws(c.workspaceId),
           agent = await resolveAgent(
@@ -511,7 +585,9 @@ export class Service {
             .list<Usage>('usage', c.workspaceId)
             .filter((u) => u.runId === run.id && u.kind === 'delta')
             .reduce((n, u) => n + (u.input ?? 0) + (u.output ?? 0), 0);
+          const automatic = this.settings().autoContinueTokens;
           if (
+            !automatic &&
             !(await this.host('confirm', {
               title: 'Continue past token threshold?',
               detail: `Run: ${run.id}\nObserved tokens: ${tokens}\nPlanned threshold: ${plan.limits.maxTokens}\nContinuing allows remaining agents to dispatch without this threshold. Copilot usage may increase.`,
@@ -519,6 +595,7 @@ export class Service {
           )
             return;
           run.tokenLimitApproved = true;
+          run.tokenLimitApproval = automatic ? 'automatic' : 'manual';
         }
         this.store.put(
           'runs',
@@ -565,15 +642,57 @@ export class Service {
           const attempts = this.store
             .list<Attempt>('attempts', ws.id)
             .filter((a) => a.runId === run.id);
-          if (attempts.some((a) => a.diff && !a.integrated))
-            throw new Error('Integrate unreviewed changes before deleting this run history.');
+          const unreviewed = attempts.filter((a) => a.diff && !a.integrated);
+          const worktreeRoot = resolve(this.dataDir, 'worktrees');
+          const worktrees = attempts.flatMap((attempt) => {
+            if (!attempt.worktree) return [];
+            if (!/^[\w-]+$/.test(run.id) || !/^[\w-]+$/.test(attempt.taskId))
+              throw new Error('Run worktree identity is invalid; refusing to delete files.');
+            const expected = resolve(worktreeRoot, run.id, attempt.taskId);
+            const same =
+              process.platform === 'win32'
+                ? resolve(attempt.worktree).toLowerCase() === expected.toLowerCase()
+                : resolve(attempt.worktree) === expected;
+            if (!contained(worktreeRoot, expected) || !same)
+              throw new Error(
+                'Run worktree path is outside its owned directory; refusing to delete files.',
+              );
+            return [expected];
+          });
           if (
             !(await this.host('confirm', {
-              title: 'Delete run history?',
-              detail: `Run: ${run.id}\nRepository: ${ws.root}\nThis removes attempts, events, and usage. A minimal run identity remains to prevent replay.`,
+              title: unreviewed.length
+                ? 'Discard unreviewed changes and delete run?'
+                : 'Delete run history?',
+              detail: `Run: ${run.id}\nRepository: ${ws.root}\n${unreviewed.length} unreviewed result(s) will be discarded. ${worktrees.length} app-owned Git worktree(s) will be removed. Attempts, events, and usage will be deleted. Changes already integrated into the repository are kept. A minimal run identity remains to prevent replay.`,
             }))
           )
             return;
+          const latest = this.store.get<Run>('runs', run.id, ws.id);
+          if (latest.deleted || ['queued', 'running', 'paused'].includes(latest.state))
+            throw new Error('Run changed during deletion. Reopen it and try again.');
+          await this.locked(ws.commonDir, async () => {
+            for (const path of worktrees) {
+              const exists = await stat(path).then(
+                () => true,
+                (error: NodeJS.ErrnoException) => {
+                  if (error.code === 'ENOENT') return false;
+                  throw error;
+                },
+              );
+              if (exists) {
+                const canonicalRoot = await realpath(worktreeRoot);
+                const actual = await realpath(path);
+                const expected = resolve(canonicalRoot, relative(worktreeRoot, path));
+                const same =
+                  process.platform === 'win32'
+                    ? actual.toLowerCase() === expected.toLowerCase()
+                    : actual === expected;
+                if (!same) throw new Error('Run worktree redirects outside its owned directory.');
+                await git(ws.root, ['worktree', 'remove', '--force', path]);
+              }
+            }
+          });
           this.store.transaction(() => {
             for (const attempt of attempts) {
               this.store.db
@@ -708,15 +827,31 @@ export class Service {
       case 'events':
         this.store.get<Attempt>('attempts', c.attemptId, c.workspaceId);
         return this.store.events(c.workspaceId, c.attemptId, c.offset);
-      case 'settings':
-        if (c.globalConcurrency !== this.settings().globalConcurrency)
+      case 'settings': {
+        const current = this.settings();
+        const autoApprovePlans = c.autoApprovePlans ?? current.autoApprovePlans;
+        const autoContinueTokens = c.autoContinueTokens ?? current.autoContinueTokens;
+        if (
+          (autoApprovePlans && !current.autoApprovePlans) ||
+          (autoContinueTokens && !current.autoContinueTokens)
+        ) {
+          const accepted = await this.host('confirm', {
+            title: 'Enable automatic approvals',
+            detail: `Automatically approve verified workflow scopes: ${c.autoApprovePlans ? 'yes' : 'no'}\nAutomatically continue past observed token thresholds: ${c.autoContinueTokens ? 'yes' : 'no'}\n\nThis can start approved work and increase Copilot usage. Shell commands, MCP access, and result integration still require separate approval.`,
+          });
+          if (!accepted) throw new Error('Automatic approvals were not enabled.');
+        }
+        if (c.globalConcurrency !== current.globalConcurrency)
           for (const ws of this.store.list<Workspace>('workspaces')) this.invalidate(ws.id);
         this.store.put('settings', 'app', {
           globalConcurrency: c.globalConcurrency,
           selectedWorkspace: c.selectedWorkspace,
           theme: c.theme,
+          autoApprovePlans,
+          autoContinueTokens,
         });
         return;
+      }
       case 'backup':
         await this.store.backup(c.path);
         return;
@@ -923,6 +1058,34 @@ export class Service {
       createdAt: new Date().toISOString(),
     };
     this.store.put('plans', plan.id, { ...plan, scope: payload }, workspaceId);
+    if (this.settings().autoApprovePlans) {
+      try {
+        await this.verify(plan);
+        const current = this.store.get<Plan>('plans', plan.id, workspaceId);
+        if (
+          this.settings().autoApprovePlans &&
+          current.state === 'draft' &&
+          current.hash === plan.hash
+        ) {
+          const approval = {
+            id: randomUUID(),
+            workspaceId,
+            planId: plan.id,
+            hash: plan.hash,
+            decision: 'approve',
+            createdAt: new Date().toISOString(),
+            automatic: true,
+          };
+          this.store.transaction(() => {
+            this.store.put('approvals', approval.id, approval, workspaceId);
+            this.store.put('plans', plan.id, { ...current, state: 'approved' }, workspaceId);
+          });
+          return { ...plan, state: 'approved' as const };
+        }
+      } catch {
+        // Keep the draft reviewable when its repository or scope cannot be verified.
+      }
+    }
     return plan;
   }
   async verify(plan: Plan) {
@@ -1071,6 +1234,15 @@ export class Service {
             .list<Usage>('usage', ws.id)
             .filter((u) => u.runId === run.id && u.kind === 'delta')
             .reduce((n, u) => n + (u.input ?? 0) + (u.output ?? 0), 0);
+          if (
+            tokens >= plan.limits.maxTokens &&
+            !run.tokenLimitApproved &&
+            this.settings().autoContinueTokens
+          ) {
+            run.tokenLimitApproved = true;
+            run.tokenLimitApproval = 'automatic';
+            this.store.put('runs', run.id, run, ws.id);
+          }
           if (tokens >= plan.limits.maxTokens && !run.tokenLimitApproved) {
             this.store.put(
               'runs',
@@ -1141,6 +1313,7 @@ export class Service {
         items: plan.context,
         predecessors: predecessors.map((p) => ({
           task: p.taskId,
+          title: plan.tasks.find((item) => item.id === p.taskId)?.title,
           result: p.output,
           commit: p.commit,
         })),
