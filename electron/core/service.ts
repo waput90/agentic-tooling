@@ -1048,6 +1048,7 @@ export class Service {
           headroom: plan.headroom,
           timeoutMinutes: plan.limits.timeoutMinutes,
           mcp: mcp.config,
+          mcpOAuthServers: mcp.oauthServers,
           secrets: mcp.secrets,
         },
         attempt,
@@ -1178,7 +1179,10 @@ export class Service {
   }
   private async mcpConfigs(ws: Workspace, servers: Mcp[]) {
     const config: Record<string, MCPServerConfig> = {},
-      secrets: string[] = [];
+      secrets: string[] = [],
+      oauthServers = servers
+        .filter((server) => server.auth === 'oauth')
+        .map((server) => server.name);
     for (const server of servers) {
       let secret: string | undefined;
       if (server.secretRef) {
@@ -1204,7 +1208,7 @@ export class Service {
               tools: server.tools,
             };
     }
-    return { config, secrets };
+    return { config, secrets, oauthServers };
   }
   private async mcpAction(workspaceId: string, id: string, action: string) {
     const ws = this.ws(workspaceId),
@@ -1233,15 +1237,25 @@ export class Service {
     this.changed();
     try {
       const configs = await this.mcpConfigs(ws, [server]);
-      const result = await this.worker({
+      const job: Job = {
         kind: 'mcp',
         root: ws.root,
         dataDir: join(this.dataDir, 'runtime', 'identity'),
         mcp: configs.config,
+        mcpOAuthServers: configs.oauthServers,
         secrets: configs.secrets,
         mcpAction: action,
         serverName: server.name,
-      });
+      };
+      let result = await this.worker(job);
+      if (action === 'authenticate' && server.auth === 'oauth')
+        try {
+          result = await this.worker({ ...job, mcpAction: 'test' });
+        } catch (error) {
+          throw new Error(
+            `OAuth worked in the sign-in session, but a new session could not use its saved grant. ${(error as Error).message}`,
+          );
+        }
       server.state = 'stopped';
       server.diagnostic =
         JSON.stringify(result, null, 2) +

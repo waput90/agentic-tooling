@@ -811,6 +811,7 @@ function Workflows({
   data: Snapshot;
   send: Send;
 }) {
+  type AgentChoice = { key: string; name: string; role: string; source: 'custom' | 'repository' };
   const [title, setTitle] = useState(''),
     [tasks, setTasks] = useState<Task[]>([
       { id: 'task-1', title: '', prompt: '', role: 'developer', dependsOn: [], source: 'auto' },
@@ -818,7 +819,75 @@ function Workflows({
     [concurrency, setConcurrency] = useState(2),
     [maxTokens, setMaxTokens] = useState(100000),
     [timeout, setTimeoutMinutes] = useState(15),
-    [preview, setPreview] = useState<Plan>();
+    [preview, setPreview] = useState<Plan>(),
+    [question, setQuestion] = useState(''),
+    [selectedAgents, setSelectedAgents] = useState<string[]>([]),
+    [runOrder, setRunOrder] = useState<'sequential' | 'parallel'>('sequential'),
+    [repositoryAgents, setRepositoryAgents] = useState<{ name: string; role: string }[]>([]),
+    [discoveryError, setDiscoveryError] = useState('');
+  useEffect(() => {
+    let active = true;
+    setRepositoryAgents([]);
+    setSelectedAgents([]);
+    setDiscoveryError('');
+    void window.desktop
+      .request<{ repository: { name: string; role: string }[] }>({
+        type: 'previewAgents',
+        workspaceId: workspace.id,
+      })
+      .then((result) => {
+        if (active) setRepositoryAgents(result.repository);
+      })
+      .catch((error: unknown) => {
+        if (active) setDiscoveryError((error as Error).message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [workspace.id]);
+  const customAgents = data.agents.filter(
+    (agent) =>
+      !agent.archived &&
+      data.agents.filter((candidate) => !candidate.archived && candidate.role === agent.role)
+        .length === 1,
+  );
+  const ambiguousRoles = [
+    ...new Set(data.agents.filter((agent) => !agent.archived).map((agent) => agent.role)),
+  ].filter(
+    (role) => data.agents.filter((agent) => !agent.archived && agent.role === role).length > 1,
+  );
+  const choices: AgentChoice[] = [
+    ...repositoryAgents.map((agent) => ({
+      key: `repository:${agent.role}`,
+      name: agent.name,
+      role: agent.role,
+      source: 'repository' as const,
+    })),
+    ...customAgents.map((agent) => ({
+      key: `custom:${agent.role}`,
+      name: agent.name,
+      role: agent.role,
+      source: 'custom' as const,
+    })),
+  ];
+  const chosen = selectedAgents
+    .map((key) => choices.find((choice) => choice.key === key))
+    .filter((choice): choice is AgentChoice => Boolean(choice));
+  const moveAgent = (index: number, direction: -1 | 1) => {
+    const next = [...selectedAgents];
+    [next[index], next[index + direction]] = [next[index + direction], next[index]];
+    setSelectedAgents(next);
+    setPreview(undefined);
+  };
+  const quickTasks = (): Task[] =>
+    chosen.map((agent, index) => ({
+      id: `task-${index + 1}`,
+      title: `${agent.name}: ${question.trim()}`.slice(0, 200),
+      prompt: question.trim(),
+      role: agent.role,
+      source: agent.source,
+      dependsOn: runOrder === 'sequential' && index > 0 ? [`task-${index}`] : [],
+    }));
   const edit = (i: number, patch: Partial<Task>) => {
     setTasks(tasks.map((t, j) => (i === j ? { ...t, ...patch } : t)));
     setPreview(undefined);
@@ -826,212 +895,351 @@ function Workflows({
   return (
     <div className="stack">
       <section className="panel">
-        <h2>Compose a workflow</h2>
-        {data.templates.length > 0 && (
-          <Field label="Portable workflow template">
-            <select
-              defaultValue=""
-              onChange={(e) => {
-                const template = data.templates.find((t) => t.id === e.target.value);
-                if (template) {
-                  setTitle(template.title);
-                  setTasks(structuredClone(template.tasks));
-                  setConcurrency(template.limits.concurrency);
-                  setMaxTokens(template.limits.maxTokens);
-                  setTimeoutMinutes(template.limits.timeoutMinutes);
-                  setPreview(undefined);
-                }
-              }}
-            >
-              <option value="">Choose an imported template</option>
-              {data.templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.title}
-                </option>
-              ))}
-            </select>
-          </Field>
-        )}
+        <h2>Ask agents to work on a question</h2>
         <p className="text-sm muted">
-          Independent tasks can run together. Dependencies receive predecessor changes and selected
-          context.
+          Enter one request, choose the agents, and review their tasks before approval.
         </p>
-        <Field label="Workflow title">
-          <input
-            value={title}
-            onChange={(e) => {
-              setTitle(e.target.value);
+        <Field label="Your question or task">
+          <textarea
+            rows={4}
+            maxLength={30000}
+            value={question}
+            onChange={(event) => {
+              setQuestion(event.target.value);
               setPreview(undefined);
             }}
-            placeholder="Implement the workspace dashboard"
+            placeholder="What should these agents work on?"
           />
         </Field>
-        <div className="form-grid">
-          <Field label="Parallel task limit">
-            <input
-              type="number"
-              min={1}
-              max={8}
-              value={concurrency}
-              onChange={(e) => {
-                setConcurrency(+e.target.value);
-                setPreview(undefined);
-              }}
-            />
-          </Field>
-          <Field label="Observed token dispatch limit">
-            <input
-              type="number"
-              min={1}
-              value={maxTokens}
-              onChange={(e) => {
-                setMaxTokens(+e.target.value);
-                setPreview(undefined);
-              }}
-            />
-          </Field>
-          <Field label="Timeout per attempt (minutes)">
-            <input
-              type="number"
-              min={1}
-              max={120}
-              value={timeout}
-              onChange={(e) => {
-                setTimeoutMinutes(+e.target.value);
-                setPreview(undefined);
-              }}
-            />
-          </Field>
-        </div>
-        <div className="toolbar mt-5">
-          <Button
-            onClick={() => {
-              setTasks(tasks.map((t, i) => ({ ...t, dependsOn: i ? [tasks[i - 1].id] : [] })));
-              setPreview(undefined);
-            }}
-          >
-            Make sequential
-          </Button>
-          <Button
-            onClick={() => {
-              setTasks(tasks.map((t) => ({ ...t, dependsOn: [] })));
-              setPreview(undefined);
-            }}
-          >
-            Make parallel
-          </Button>
-        </div>
-        <div className="stack mt-6">
-          {tasks.map((task, i) => (
-            <div className="task-line" key={task.id}>
-              <div className="flex justify-between items-center">
-                <h3>{task.id}</h3>
-                <Button
-                  onClick={() => {
-                    setTasks(
-                      tasks
-                        .filter((_, j) => j !== i)
-                        .map((t) => ({
-                          ...t,
-                          dependsOn: t.dependsOn.filter((d) => d !== task.id),
-                        })),
+        <div className="mt-5">
+          <span className="label">Choose agents</span>
+          {discoveryError && <p className="notice error">{discoveryError}</p>}
+          {ambiguousRoles.length > 0 && (
+            <p className="text-sm muted">
+              Give custom agents distinct roles to select them here: {ambiguousRoles.join(', ')}.
+            </p>
+          )}
+          {!choices.length && !discoveryError && (
+            <p className="text-sm muted">
+              Create an agent in Agents, or add a repository agent profile.
+            </p>
+          )}
+          <div className="stack">
+            {choices.map((agent) => (
+              <label className="row" key={agent.key}>
+                <input
+                  type="checkbox"
+                  checked={selectedAgents.includes(agent.key)}
+                  onChange={(event) => {
+                    setSelectedAgents(
+                      event.target.checked
+                        ? [...selectedAgents, agent.key]
+                        : selectedAgents.filter((key) => key !== agent.key),
                     );
                     setPreview(undefined);
                   }}
-                  disabled={tasks.length === 1}
-                >
-                  Remove
-                </Button>
-              </div>
-              <div className="form-grid">
-                <Field label="Task title">
-                  <input value={task.title} onChange={(e) => edit(i, { title: e.target.value })} />
-                </Field>
-                <Field label="Agent role">
-                  <input
-                    list="roles"
-                    value={task.role}
-                    onChange={(e) => edit(i, { role: e.target.value })}
-                  />
-                  <datalist id="roles">
-                    {data.agents.map((a) => (
-                      <option key={a.id} value={a.role} />
-                    ))}
-                  </datalist>
-                </Field>
-              </div>
-              <Field label="Task instructions">
-                <textarea
-                  rows={3}
-                  value={task.prompt}
-                  onChange={(e) => edit(i, { prompt: e.target.value })}
                 />
-              </Field>
-              <div className="form-grid">
-                <Field label="Source precedence">
-                  <select
-                    value={task.source}
-                    onChange={(e) => edit(i, { source: e.target.value as Task['source'] })}
-                  >
-                    <option value="auto">Repository first, custom fallback</option>
-                    <option value="repository">Repository only</option>
-                    <option value="custom">Explicit custom override</option>
-                  </select>
-                </Field>
-                <Field label="Prerequisites (comma separated IDs)">
-                  <input
-                    value={task.dependsOn.join(', ')}
-                    onChange={(e) =>
-                      edit(i, {
-                        dependsOn: e.target.value
-                          .split(',')
-                          .map((s) => s.trim())
-                          .filter(Boolean),
-                      })
-                    }
-                    placeholder="task-1, task-2"
-                  />
-                </Field>
-              </div>
-            </div>
-          ))}
+                <span>
+                  {agent.name} · {agent.role} · {agent.source}
+                </span>
+              </label>
+            ))}
+          </div>
         </div>
-        <div className="toolbar mt-6">
-          <Button
-            onClick={() => {
-              setTasks([
-                ...tasks,
-                {
-                  id: `task-${Math.max(...tasks.map((t) => Number(t.id.split('-')[1]) || 0)) + 1}`,
-                  title: '',
-                  prompt: '',
-                  role: 'developer',
-                  dependsOn: [],
-                  source: 'auto',
-                },
-              ]);
-              setPreview(undefined);
-            }}
-          >
-            ＋ Add task
-          </Button>
+        <div className="mt-5">
+          <span className="label">Run order</span>
+          <div className="toolbar">
+            <label>
+              <input
+                type="radio"
+                name="quick-run-order"
+                checked={runOrder === 'sequential'}
+                onChange={() => {
+                  setRunOrder('sequential');
+                  setPreview(undefined);
+                }}
+              />{' '}
+              Sequential
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="quick-run-order"
+                checked={runOrder === 'parallel'}
+                onChange={() => {
+                  setRunOrder('parallel');
+                  setPreview(undefined);
+                }}
+              />{' '}
+              Parallel
+            </label>
+          </div>
+        </div>
+        {chosen.length > 0 && (
+          <div className="stack mt-5">
+            <span className="label">
+              Selected agents{runOrder === 'sequential' ? ' (in run order)' : ''}
+            </span>
+            {chosen.map((agent, index) => (
+              <div className="row flex justify-between items-center" key={agent.key}>
+                <span>
+                  {index + 1}. {agent.name} ({agent.role})
+                </span>
+                {runOrder === 'sequential' && (
+                  <div className="toolbar">
+                    <Button disabled={index === 0} onClick={() => moveAgent(index, -1)}>
+                      Move up
+                    </Button>
+                    <Button
+                      disabled={index === chosen.length - 1}
+                      onClick={() => moveAgent(index, 1)}
+                    >
+                      Move down
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {chosen.length > 50 && <p className="notice error">Select at most 50 agents.</p>}
+        <div className="toolbar mt-5">
           <Button
             primary
-            disabled={!title || tasks.some((t) => !t.title || !t.prompt)}
+            disabled={!question.trim() || !chosen.length || chosen.length > 50}
             onClick={() =>
               void send({
                 type: 'savePlan',
                 workspaceId: workspace.id,
-                title,
-                tasks,
-                limits: { concurrency, maxTokens, timeoutMinutes: timeout },
-              }).then((p) => setPreview(p as Plan))
+                title: question.trim().slice(0, 200),
+                tasks: quickTasks(),
+                limits: {
+                  concurrency: runOrder === 'sequential' ? 1 : Math.min(chosen.length, 8),
+                  maxTokens: 100000,
+                  timeoutMinutes: 15,
+                },
+              }).then((plan) => {
+                if (plan) setPreview(plan as Plan);
+              })
             }
           >
-            Resolve and preview approval
+            Preview agent workflow
           </Button>
         </div>
       </section>
+      <details className="panel">
+        <summary>Advanced workflow editor</summary>
+        <div className="mt-5">
+          <h2>Compose a workflow</h2>
+          {data.templates.length > 0 && (
+            <Field label="Portable workflow template">
+              <select
+                defaultValue=""
+                onChange={(e) => {
+                  const template = data.templates.find((t) => t.id === e.target.value);
+                  if (template) {
+                    setTitle(template.title);
+                    setTasks(structuredClone(template.tasks));
+                    setConcurrency(template.limits.concurrency);
+                    setMaxTokens(template.limits.maxTokens);
+                    setTimeoutMinutes(template.limits.timeoutMinutes);
+                    setPreview(undefined);
+                  }
+                }}
+              >
+                <option value="">Choose an imported template</option>
+                {data.templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+          <p className="text-sm muted">
+            Independent tasks can run together. Dependencies receive predecessor changes and
+            selected context.
+          </p>
+          <Field label="Workflow title">
+            <input
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                setPreview(undefined);
+              }}
+              placeholder="Implement the workspace dashboard"
+            />
+          </Field>
+          <div className="form-grid">
+            <Field label="Parallel task limit">
+              <input
+                type="number"
+                min={1}
+                max={8}
+                value={concurrency}
+                onChange={(e) => {
+                  setConcurrency(+e.target.value);
+                  setPreview(undefined);
+                }}
+              />
+            </Field>
+            <Field label="Observed token dispatch limit">
+              <input
+                type="number"
+                min={1}
+                value={maxTokens}
+                onChange={(e) => {
+                  setMaxTokens(+e.target.value);
+                  setPreview(undefined);
+                }}
+              />
+            </Field>
+            <Field label="Timeout per attempt (minutes)">
+              <input
+                type="number"
+                min={1}
+                max={120}
+                value={timeout}
+                onChange={(e) => {
+                  setTimeoutMinutes(+e.target.value);
+                  setPreview(undefined);
+                }}
+              />
+            </Field>
+          </div>
+          <div className="toolbar mt-5">
+            <Button
+              onClick={() => {
+                setTasks(tasks.map((t, i) => ({ ...t, dependsOn: i ? [tasks[i - 1].id] : [] })));
+                setPreview(undefined);
+              }}
+            >
+              Make sequential
+            </Button>
+            <Button
+              onClick={() => {
+                setTasks(tasks.map((t) => ({ ...t, dependsOn: [] })));
+                setPreview(undefined);
+              }}
+            >
+              Make parallel
+            </Button>
+          </div>
+          <div className="stack mt-6">
+            {tasks.map((task, i) => (
+              <div className="task-line" key={task.id}>
+                <div className="flex justify-between items-center">
+                  <h3>{task.id}</h3>
+                  <Button
+                    onClick={() => {
+                      setTasks(
+                        tasks
+                          .filter((_, j) => j !== i)
+                          .map((t) => ({
+                            ...t,
+                            dependsOn: t.dependsOn.filter((d) => d !== task.id),
+                          })),
+                      );
+                      setPreview(undefined);
+                    }}
+                    disabled={tasks.length === 1}
+                  >
+                    Remove
+                  </Button>
+                </div>
+                <div className="form-grid">
+                  <Field label="Task title">
+                    <input
+                      value={task.title}
+                      onChange={(e) => edit(i, { title: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Agent role">
+                    <input
+                      list="roles"
+                      value={task.role}
+                      onChange={(e) => edit(i, { role: e.target.value })}
+                    />
+                    <datalist id="roles">
+                      {data.agents.map((a) => (
+                        <option key={a.id} value={a.role} />
+                      ))}
+                    </datalist>
+                  </Field>
+                </div>
+                <Field label="Task instructions">
+                  <textarea
+                    rows={3}
+                    value={task.prompt}
+                    onChange={(e) => edit(i, { prompt: e.target.value })}
+                  />
+                </Field>
+                <div className="form-grid">
+                  <Field label="Source precedence">
+                    <select
+                      value={task.source}
+                      onChange={(e) => edit(i, { source: e.target.value as Task['source'] })}
+                    >
+                      <option value="auto">Repository first, custom fallback</option>
+                      <option value="repository">Repository only</option>
+                      <option value="custom">Explicit custom override</option>
+                    </select>
+                  </Field>
+                  <Field label="Prerequisites (comma separated IDs)">
+                    <input
+                      value={task.dependsOn.join(', ')}
+                      onChange={(e) =>
+                        edit(i, {
+                          dependsOn: e.target.value
+                            .split(',')
+                            .map((s) => s.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                      placeholder="task-1, task-2"
+                    />
+                  </Field>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="toolbar mt-6">
+            <Button
+              onClick={() => {
+                setTasks([
+                  ...tasks,
+                  {
+                    id: `task-${Math.max(...tasks.map((t) => Number(t.id.split('-')[1]) || 0)) + 1}`,
+                    title: '',
+                    prompt: '',
+                    role: 'developer',
+                    dependsOn: [],
+                    source: 'auto',
+                  },
+                ]);
+                setPreview(undefined);
+              }}
+            >
+              ＋ Add task
+            </Button>
+            <Button
+              primary
+              disabled={!title || tasks.some((t) => !t.title || !t.prompt)}
+              onClick={() =>
+                void send({
+                  type: 'savePlan',
+                  workspaceId: workspace.id,
+                  title,
+                  tasks,
+                  limits: { concurrency, maxTokens, timeoutMinutes: timeout },
+                }).then((p) => setPreview(p as Plan))
+              }
+            >
+              Resolve and preview approval
+            </Button>
+          </div>
+        </div>
+      </details>
       {preview && (
         <PlanCard plan={data.plans.find((p) => p.id === preview.id) ?? preview} send={send} />
       )}

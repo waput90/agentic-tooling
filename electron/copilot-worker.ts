@@ -30,6 +30,7 @@ export type Job = {
   headroom?: HeadroomConfig;
   timeoutMinutes?: number;
   mcp?: Record<string, MCPServerConfig>;
+  mcpOAuthServers?: string[];
   mcpAction?: string;
   serverName?: string;
   secrets?: string[];
@@ -183,8 +184,18 @@ async function main() {
       onEvent: (e) => send('event', e),
     });
     await session.rpc.mcp.removeGitHub();
+    if (job.mcpAction === 'test')
+      for (const serverName of job.mcpOAuthServers ?? [])
+        await session.rpc.mcp.oauth.authenticationStateChanged({
+          serverName,
+        });
     if (job.mcpAction === 'authenticate') {
-      const login = await session.rpc.mcp.oauth.login({ serverName: job.serverName! });
+      const login = await session.rpc.mcp.oauth.login({
+        serverName: job.serverName!,
+        forceReauth: true,
+        clientName: 'Agentic Tooling',
+        callbackSuccessMessage: 'Sign-in complete. Return to Agentic Tooling.',
+      });
       send('login', login);
       if (login.authorizationUrl) {
         const until = Date.now() + 180000;
@@ -201,7 +212,25 @@ async function main() {
         }
       }
     }
-    const servers = await session.rpc.mcp.list();
+    let servers = await session.rpc.mcp.list();
+    let server = servers.servers.find((candidate) => candidate.name === job.serverName);
+    if (job.mcpAction === 'test' && job.mcpOAuthServers?.includes(job.serverName!)) {
+      const until = Date.now() + 10000;
+      while (server?.status !== 'connected' && Date.now() < until) {
+        active();
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        servers = await session.rpc.mcp.list();
+        server = servers.servers.find((candidate) => candidate.name === job.serverName);
+      }
+    }
+    if (server?.status !== 'connected')
+      throw new Error(
+        job.mcpAction === 'authenticate'
+          ? `${job.serverName} did not finish OAuth sign-in. Complete the browser consent and try Authenticate again.`
+          : job.mcpOAuthServers?.includes(job.serverName!)
+            ? `${job.serverName} could not use its saved OAuth grant in this session (status: ${server?.status ?? 'missing'}). Authenticate again, then check this diagnostic.`
+            : `${job.serverName} is ${server?.status ?? 'missing'}. Check the connection configuration before testing tools.`,
+      );
     const tools = await session.rpc.mcp.listTools({ serverName: job.serverName! });
     send('result', { servers, tools });
     return;
@@ -360,6 +389,10 @@ async function main() {
   });
   await session.rpc.options.update({ installedPlugins: [], includedBuiltinSkills: [] });
   await session.rpc.mcp.removeGitHub();
+  for (const serverName of job.mcpOAuthServers ?? [])
+    await session.rpc.mcp.oauth.authenticationStateChanged({
+      serverName,
+    });
   send('session', { id: session.sessionId });
   active();
   const response = await session.sendAndWait(

@@ -18,7 +18,7 @@ The production application bundles Electron and the compatible Copilot runtime; 
 3. In **Agents**, create a `planner` with read tools and a `developer` with file-writing tools. Select an account-available model for each.
 4. Select a workspace and set its default model for repository profiles that omit `model`.
 5. Start a read-only planning request from Overview. Read the result in Runs and use **Create workflow draft from this plan** for structured responses. The generated draft has no approval.
-6. Compose tasks in Workflows, select their dependencies, and resolve the approval preview.
+6. In Workflows, enter one question, choose the agents, and select sequential or parallel execution. Preview the resolved agents and tasks. Use the advanced editor when each task needs different instructions or dependencies.
 7. Approve the exact scope in the native desktop confirmation, then start execution.
 8. Inspect each attempt's output, context, events, and diff. Integrate successful results with a separate confirmation.
 
@@ -64,9 +64,9 @@ Configuration is frozen into each new plan's approval scope. Changing it invalid
 
 ## MCP and authentication
 
-Local executable/argument-array and remote HTTPS/loopback HTTP definitions are workspace-scoped. Save does not launch them. Test explicitly starts a short-lived probe and lists tools; its diagnostic contains the observed state. The probe closes after testing, so a successful probe is labelled stopped rather than falsely remaining connected.
+Local executable/argument-array and remote HTTPS/loopback HTTP definitions are workspace-scoped. Save does not launch them. Test explicitly starts a short-lived probe and lists tools; its diagnostic contains the observed state. OAuth authentication also checks that a separate session can use the saved grant. The probe closes after testing, so a successful probe is labelled stopped rather than falsely remaining connected.
 
-Bearer/API-key values are encrypted with Electron asynchronous `safeStorage`. Runtime-managed MCP OAuth uses persistent OS credential storage. The app keeps the runtime alive while browser consent finishes; cancellation, timeout, and connection errors are surfaced. Clearing an **app secret** removes the app-owned encrypted record. Runtime OAuth grants are owned by Copilot and are not removed by that button; revoke those at the provider/runtime. No wildcard MCP grants are accepted. Bind a server explicitly to a workspace's agent and select individual tools.
+Bearer/API-key values are encrypted with Electron asynchronous `safeStorage`. Runtime-managed MCP OAuth uses persistent OS credential storage. **Authenticate** requests fresh OAuth consent when a cached grant is stuck. The app keeps the runtime alive while browser consent finishes; cancellation, timeout, and connection errors are surfaced. Clearing an **app secret** removes the app-owned encrypted record. Runtime OAuth grants are owned by Copilot and are not removed by that button; revoke those at the provider/runtime. No wildcard MCP grants are accepted. Bind a server explicitly to a workspace's agent and select individual tools.
 
 Figma and third-party OAuth acceptance require a real eligible account and provider-approved client identity. These have **not** been live-verified. The local stdio fixture is verified; see [validation and remaining acceptance checks](docs/validation.md).
 
