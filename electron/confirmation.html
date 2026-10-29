@@ -100,20 +100,20 @@
         overflow-wrap: anywhere;
       }
       .footer {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
+        display: block;
         padding-top: 19px;
         border-top: 1px solid #39443e;
       }
       .hint {
+        display: block;
         color: #8e9c92;
         font-size: 12px;
       }
       .buttons {
         display: flex;
+        justify-content: flex-end;
         gap: 10px;
+        margin-top: 12px;
       }
       button {
         font: inherit;
@@ -149,6 +149,9 @@
       .button.destructive:hover {
         background: #ffc0b8;
       }
+      .button[hidden] {
+        display: none;
+      }
       button:focus-visible {
         outline: 2px solid white;
         outline-offset: 3px;
@@ -171,10 +174,13 @@
       <h1 id="title">Confirm action</h1>
       <p id="detail" class="detail"></p>
       <div class="footer">
-        <span class="hint">Escape cancels this action</span>
+        <span id="hint" class="hint">Escape cancels this action</span>
         <div class="buttons">
           <button id="cancel" class="button" type="button" autofocus>Cancel</button
           ><button id="action" class="button primary" type="button">Continue</button>
+          <button id="remember" class="button primary" type="button" hidden>
+            Approve &amp; don't ask again
+          </button>
         </div>
       </div>
     </main>

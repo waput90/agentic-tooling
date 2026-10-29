@@ -153,6 +153,15 @@ export type Attempt = {
   endedAt?: string;
   context?: string;
   integrated?: boolean;
+  integratedCommit?: string;
+  integratedAt?: string;
+};
+export type RememberedApproval = {
+  id: string;
+  title: string;
+  workspaceId?: string;
+  scopeHash: string;
+  createdAt: string;
 };
 export type ContextItem = {
   id: string;
@@ -187,6 +196,7 @@ export type Snapshot = {
   plans: Plan[];
   runs: Run[];
   attempts: Attempt[];
+  rememberedApprovals: RememberedApproval[];
   mcp: (Mcp & { workspaceId: string })[];
   context: (ContextItem & { workspaceId: string })[];
   usage: Usage[];
@@ -284,6 +294,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('storage') }),
   z.object({ type: z.literal('pruneHistory'), days: z.number().int().min(1).max(3650) }),
   z.object({ type: z.literal('integrate'), workspaceId: id, attemptId: id }),
+  z.object({ type: z.literal('forgetApproval'), approvalId: id }),
   z.object({
     type: z.literal('saveMcp'),
     workspaceId: id,

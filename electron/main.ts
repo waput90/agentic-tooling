@@ -9,10 +9,11 @@ import {
   powerMonitor,
 } from 'electron';
 import { Worker } from 'node:worker_threads';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { createReadStream } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdir, readFile, writeFile, copyFile, rename, rm } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, copyFile, rename, rm, stat } from 'node:fs/promises';
 import { DatabaseSync } from 'node:sqlite';
 import { commandSchema, type Command, type Snapshot } from '../src/shared';
 import { configureUpdater, type UpdateState } from './updater';
@@ -32,18 +33,29 @@ const request = <T = unknown>(command: Command): Promise<T> =>
     pending.set(id, { resolve: (v) => resolve(v as T), reject });
     backend.postMessage({ id, command });
   });
+const desktopConfirm = (title: string, detail: string): Promise<boolean> =>
+  new Promise((resolve, reject) => {
+    const id = randomUUID();
+    pending.set(id, { resolve: (value) => resolve(value === true), reject });
+    backend.postMessage({ type: 'desktopConfirm', id, data: { title, detail } });
+  });
+async function fileDigest(path: string) {
+  const digest = createHash('sha256');
+  for await (const chunk of createReadStream(path)) digest.update(chunk);
+  return digest.digest('hex');
+}
 const changed = () => {
   if (window && !window.isDestroyed()) window.webContents.send('changed');
 };
-async function confirm(title: string, detail: string) {
+async function confirm(title: string, detail: string, rememberAllowed = false) {
   pendingDialogs++;
   try {
-    return await new Promise<boolean>((resolve) => {
+    return await new Promise<boolean | 'remember'>((resolve) => {
       const modal = new BrowserWindow({
         parent: window,
         modal: true,
         width: 620,
-        height: 440,
+        height: 460,
         minWidth: 520,
         minHeight: 380,
         resizable: false,
@@ -59,17 +71,18 @@ async function confirm(title: string, detail: string) {
         },
       });
       let settled = false;
-      const finish = (approved: boolean) => {
+      const finish = (decision: boolean | 'remember') => {
         if (settled) return;
         settled = true;
         ipcMain.removeListener('confirmation-choice', onChoice);
         if (!modal.isDestroyed()) modal.close();
-        resolve(approved);
+        resolve(decision);
       };
       const onChoice = (event: Electron.IpcMainEvent, choice: unknown) => {
         if (event.sender !== modal.webContents || event.senderFrame !== modal.webContents.mainFrame)
           return;
         if (choice === 'approve' || choice === 'cancel') finish(choice === 'approve');
+        if (choice === 'remember' && rememberAllowed) finish('remember');
       };
       ipcMain.on('confirmation-choice', onChoice);
       modal.on('closed', () => finish(false));
@@ -86,6 +99,7 @@ async function confirm(title: string, detail: string) {
               ? 'Approve'
               : 'Continue',
           destructive,
+          rememberAllowed,
         });
         modal.show();
         modal.focus();
@@ -123,7 +137,8 @@ async function boot() {
     if (m.type === 'host')
       try {
         let data: unknown;
-        if (m.action === 'confirm') data = await confirm(m.data.title, m.data.detail);
+        if (m.action === 'confirm')
+          data = await confirm(m.data.title, m.data.detail, m.data.rememberAllowed === true);
         if (m.action === 'encrypt') {
           if (!(await safeStorage.isAsyncEncryptionAvailable()))
             throw new Error('OS-protected credential storage is unavailable');
@@ -135,7 +150,9 @@ async function boot() {
           const url = new URL(m.data);
           if (url.protocol !== 'https:' || url.username || url.password)
             throw new Error('Invalid OAuth browser destination');
-          if (await confirm('Open sign-in', `Continue to ${url.origin} in your browser?`))
+          if (
+            await desktopConfirm('Open sign-in', `Continue to ${url.toString()} in your browser?`)
+          )
             await shell.openExternal(url.toString());
           else throw new Error('Sign-in cancelled');
         }
@@ -236,13 +253,17 @@ async function boot() {
     } finally {
       check.close();
     }
+    const backup = await stat(selected.filePaths[0]);
+    const backupHash = await fileDigest(selected.filePaths[0]);
     if (
-      !(await confirm(
+      !(await desktopConfirm(
         'Restore backup',
-        'The application will save a recovery backup, replace its database, and restart. Worktree files are not included in database backups.',
+        `Backup: ${selected.filePaths[0]}\nSHA-256: ${backupHash}\nSize: ${backup.size} bytes\nModified: ${backup.mtime.toISOString()}\n\nThe application will save a recovery backup, replace its database, and restart. Worktree files are not included in database backups.`,
       ))
     )
       return false;
+    if ((await fileDigest(selected.filePaths[0])) !== backupHash)
+      throw new Error('Backup changed since approval. Review and approve it again.');
     await request({ type: 'backup', path: join(dataDir, 'before-restore.sqlite') });
     await shutdown();
     const dbPath = join(dataDir, 'agentic.sqlite');
@@ -271,21 +292,23 @@ async function boot() {
       properties: ['openFile'],
     });
     if (selected.canceled) return false;
+    const contents = await readFile(selected.filePaths[0], 'utf8');
+    const contentsHash = createHash('sha256').update(contents).digest('hex');
     const state = await request<Snapshot>({ type: 'snapshot' });
     const target = state.workspaces.find((w) => w.id === workspaceId);
     if (workspaceId && !target) throw new Error('Import workspace does not exist');
     if (
-      !(await confirm(
+      !(await desktopConfirm(
         'Import definitions',
         target
-          ? `Import agents and workflow templates, and explicitly copy context and disabled MCP definitions into ${target.name}? Imported agents remain archived and no approvals are imported.`
-          : 'Import archived agents and workflow templates? Select a workspace first to also import context and disabled MCP definitions.',
+          ? `File: ${selected.filePaths[0]}\nSHA-256: ${contentsHash}\n\nImport agents and workflow templates, and explicitly copy context and disabled MCP definitions into ${target.name}? Imported agents remain archived and no approvals are imported.`
+          : `File: ${selected.filePaths[0]}\nSHA-256: ${contentsHash}\n\nImport archived agents and workflow templates? Select a workspace first to also import context and disabled MCP definitions.`,
       ))
     )
       return false;
     await request({
       type: 'import',
-      data: JSON.parse(await readFile(selected.filePaths[0], 'utf8')),
+      data: JSON.parse(contents),
       targetWorkspaceId: workspaceId,
     });
     return true;

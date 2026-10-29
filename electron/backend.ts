@@ -20,6 +20,22 @@ parentPort?.on('message', async (m) => {
     else p?.resolve(m.data);
     return;
   }
+  if (m.type === 'desktopConfirm') {
+    try {
+      if (
+        typeof m.data?.title !== 'string' ||
+        typeof m.data?.detail !== 'string' ||
+        m.data.title.length > 200 ||
+        m.data.detail.length > 30000
+      )
+        throw new Error('Invalid desktop confirmation');
+      const data = await service.confirm(m.data);
+      parentPort?.postMessage({ type: 'response', id: m.id, data });
+    } catch (e) {
+      parentPort?.postMessage({ type: 'response', id: m.id, error: (e as Error).message });
+    }
+    return;
+  }
   try {
     const data = await service.command(m.command);
     parentPort?.postMessage({ type: 'response', id: m.id, data });

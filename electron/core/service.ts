@@ -18,6 +18,7 @@ import {
   type ContextItem,
   type Mcp,
   type Plan,
+  type RememberedApproval,
   type Run,
   type Snapshot,
   type Task,
@@ -94,6 +95,33 @@ export class Service {
   ws(id: string) {
     return this.store.get<Workspace>('workspaces', id);
   }
+  private rememberedApprovals(): RememberedApproval[] {
+    try {
+      return this.store.get<RememberedApproval[]>('settings', 'rememberedApprovals');
+    } catch {
+      return [];
+    }
+  }
+  async confirm(data: { title: string; detail: string }, workspaceId?: string, scope?: unknown) {
+    const scopeHash = hash({ title: data.title, detail: data.detail, workspaceId, scope });
+    if (this.rememberedApprovals().some((entry) => entry.scopeHash === scopeHash)) return true;
+    const decision = await this.host('confirm', { ...data, rememberAllowed: true });
+    if (decision === 'remember') {
+      const record: RememberedApproval = {
+        id: randomUUID(),
+        title: data.title,
+        workspaceId,
+        scopeHash,
+        createdAt: new Date().toISOString(),
+      };
+      const existing = this.rememberedApprovals();
+      if (!existing.some((entry) => entry.scopeHash === scopeHash))
+        this.store.put('settings', 'rememberedApprovals', [...existing, record]);
+      this.changed();
+      return true;
+    }
+    return decision === true;
+  }
   settings(): Snapshot['settings'] {
     try {
       const stored = this.store.get<Partial<Snapshot['settings']>>('settings', 'app');
@@ -123,6 +151,7 @@ export class Service {
       plans: this.store.list('plans'),
       runs: this.store.list('runs'),
       attempts: this.store.list('attempts'),
+      rememberedApprovals: this.rememberedApprovals(),
       mcp: this.store.list('mcp'),
       context: this.store.list('context'),
       usage: this.store.list('usage'),
@@ -257,10 +286,14 @@ export class Service {
         if (plan.hash !== c.hash) throw new Error('Plan changed. Review the latest preview.');
         if (c.decision === 'approve') {
           await this.verify(plan);
-          const approved = await this.host('confirm', {
-            title: 'Approve execution scope',
-            detail: `Workspace: ${this.ws(c.workspaceId).root}\nPlan: ${plan.title}\nHash: ${plan.hash}\nBase: ${plan.base}\nConcurrency: ${plan.limits.concurrency}\nToken dispatch threshold: ${plan.limits.maxTokens}\n\n${plan.tasks.map((t) => `${t.id}: ${t.title}\n${t.agent.source}: ${t.agent.sourcePath}\nModel: ${t.agent.model}\nTools: ${t.agent.tools.join(', ')}\nDepends on: ${t.dependsOn.join(', ') || 'none'}`).join('\n\n')}\n\nCommands, MCP access, and integration will request separate approval.`,
-          });
+          const approved = await this.confirm(
+            {
+              title: 'Approve execution scope',
+              detail: `Workspace: ${this.ws(c.workspaceId).root}\nPlan: ${plan.title}\nHash: ${plan.hash}\nBase: ${plan.base}\nConcurrency: ${plan.limits.concurrency}\nToken dispatch threshold: ${plan.limits.maxTokens}\n\n${plan.tasks.map((t) => `${t.id}: ${t.title}\n${t.agent.source}: ${t.agent.sourcePath}\nModel: ${t.agent.model}\nTools: ${t.agent.tools.join(', ')}\nDepends on: ${t.dependsOn.join(', ') || 'none'}`).join('\n\n')}\n\nCommands, MCP access, and integration have separate exact-scope approval checks.`,
+            },
+            c.workspaceId,
+            plan.id,
+          );
           if (!approved) throw new Error('Approval cancelled');
           await this.verify(plan);
         }
@@ -347,10 +380,14 @@ export class Service {
         )
           throw new Error('Approval record missing or revoked.');
         if (
-          !(await this.host('confirm', {
-            title: 'Restart failed execution',
-            detail: `Repository: ${this.ws(c.workspaceId).root}\nPlan: ${plan.title}\nHash: ${plan.hash}\nAll ${plan.tasks.length} tasks will run again in new worktrees. Previous results remain for review, and Copilot usage may increase.`,
-          }))
+          !(await this.confirm(
+            {
+              title: 'Restart failed execution',
+              detail: `Repository: ${this.ws(c.workspaceId).root}\nPlan: ${plan.title}\nHash: ${plan.hash}\nAll ${plan.tasks.length} tasks will run again in new worktrees. Previous results remain for review, and Copilot usage may increase.`,
+            },
+            c.workspaceId,
+            c.runId,
+          ))
         )
           throw new Error('Restart cancelled');
         await this.verify(plan);
@@ -520,10 +557,14 @@ export class Service {
               .every((a) => a.state === 'succeeded' && (!a.diff || a.integrated)),
         );
         if (
-          !(await this.host('confirm', {
-            title: 'Prune completed history',
-            detail: `Remove messages, tool events, and usage detail for ${candidates.length} successful runs older than ${c.days} days? Only fully integrated/no-change results qualify. Run identities and plans remain to prevent re-execution. Repository and worktree files are preserved. Usage totals will cover retained observations only.`,
-          }))
+          !(await this.confirm(
+            {
+              title: 'Prune completed history',
+              detail: `Remove messages, tool events, and usage detail for ${candidates.length} successful runs older than ${c.days} days? Only fully integrated/no-change results qualify. Run identities and plans remain to prevent re-execution. Repository and worktree files are preserved. Usage totals will cover retained observations only.`,
+            },
+            undefined,
+            candidates.map((run) => run.id).sort(),
+          ))
         )
           return;
         this.store.transaction(() => {
@@ -588,10 +629,13 @@ export class Service {
           const automatic = this.settings().autoContinueTokens;
           if (
             !automatic &&
-            !(await this.host('confirm', {
-              title: 'Continue past token threshold?',
-              detail: `Run: ${run.id}\nObserved tokens: ${tokens}\nPlanned threshold: ${plan.limits.maxTokens}\nContinuing allows remaining agents to dispatch without this threshold. Copilot usage may increase.`,
-            }))
+            !(await this.confirm(
+              {
+                title: 'Continue past token threshold?',
+                detail: `Run: ${run.id}\nObserved tokens: ${tokens}\nPlanned threshold: ${plan.limits.maxTokens}\nContinuing allows remaining agents to dispatch without this threshold. Copilot usage may increase.`,
+              },
+              c.workspaceId,
+            ))
           )
             return;
           run.tokenLimitApproved = true;
@@ -660,12 +704,16 @@ export class Service {
             return [expected];
           });
           if (
-            !(await this.host('confirm', {
-              title: unreviewed.length
-                ? 'Discard unreviewed changes and delete run?'
-                : 'Delete run history?',
-              detail: `Run: ${run.id}\nRepository: ${ws.root}\n${unreviewed.length} unreviewed result(s) will be discarded. ${worktrees.length} app-owned Git worktree(s) will be removed. Attempts, events, and usage will be deleted. Changes already integrated into the repository are kept. A minimal run identity remains to prevent replay.`,
-            }))
+            !(await this.confirm(
+              {
+                title: unreviewed.length
+                  ? 'Discard unreviewed changes and delete run?'
+                  : 'Delete run history?',
+                detail: `Run: ${run.id}\nRepository: ${ws.root}\n${unreviewed.length} unreviewed result(s) will be discarded. ${worktrees.length} app-owned Git worktree(s) will be removed. Attempts, events, and usage will be deleted. Changes already integrated into the repository are kept. A minimal run identity remains to prevent replay.`,
+              },
+              ws.id,
+              { runId: run.id, worktrees },
+            ))
           )
             return;
           const latest = this.store.get<Run>('runs', run.id, ws.id);
@@ -714,10 +762,14 @@ export class Service {
           const plan = this.store.get<Plan>('plans', c.recordId, ws.id);
           const hasRun = this.store.list<Run>('runs', ws.id).some((r) => r.planId === plan.id);
           if (
-            !(await this.host('confirm', {
-              title: 'Delete approval history?',
-              detail: `Plan: ${plan.title}\nRepository: ${ws.root}\n${hasRun ? 'This removes it from Approvals. The plan and approval record remain for the completed run audit and replay protection.' : 'The plan and its approval records will be removed.'}`,
-            }))
+            !(await this.confirm(
+              {
+                title: 'Delete approval history?',
+                detail: `Plan: ${plan.title}\nRepository: ${ws.root}\n${hasRun ? 'This removes it from Approvals. The plan and approval record remain for the completed run audit and replay protection.' : 'The plan and its approval records will be removed.'}`,
+              },
+              ws.id,
+              plan.id,
+            ))
           )
             return;
           if (this.store.list<Run>('runs', ws.id).some((r) => r.planId === plan.id) !== hasRun)
@@ -739,10 +791,14 @@ export class Service {
         if (['queued', 'running', 'paused'].includes(run.state))
           throw new Error('Wait for the run to finish before deleting usage.');
         if (
-          !(await this.host('confirm', {
-            title: 'Delete usage observation?',
-            detail: `Run: ${run.id}\nTask: ${usage.taskId}\nThis removes the selected usage row and changes displayed totals.`,
-          }))
+          !(await this.confirm(
+            {
+              title: 'Delete usage observation?',
+              detail: `Run: ${run.id}\nTask: ${usage.taskId}\nThis removes the selected usage row and changes displayed totals.`,
+            },
+            ws.id,
+            usage.id,
+          ))
         )
           return;
         this.store.remove('usage', usage.id, ws.id);
@@ -750,6 +806,17 @@ export class Service {
       }
       case 'integrate':
         return this.integrate(c.workspaceId, c.attemptId);
+      case 'forgetApproval': {
+        const records = this.rememberedApprovals();
+        if (!records.some((entry) => entry.id === c.approvalId))
+          throw new Error('Remembered approval not found.');
+        this.store.put(
+          'settings',
+          'rememberedApprovals',
+          records.filter((entry) => entry.id !== c.approvalId),
+        );
+        return;
+      }
       case 'saveMcp': {
         if (c.server.name.toLowerCase() === 'github')
           throw new Error(
@@ -805,10 +872,14 @@ export class Service {
             throw new Error('Only tools found in the last successful test can be shared.');
           if (
             (!old.shareWithWorkspace || c.server.tools.some((tool) => !old.tools.includes(tool))) &&
-            !(await this.host('confirm', {
-              title: 'Share MCP tools with workspace agents',
-              detail: `Workspace: ${this.ws(c.workspaceId).root}\nConnection: ${c.server.name}\nTools: ${c.server.tools.join(', ')}\n\nEvery agent selected for a new workflow in this workspace, including repository agents, can request these tools. Each MCP tool call still requires separate approval. Existing approvals are invalidated.`,
-            }))
+            !(await this.confirm(
+              {
+                title: 'Share MCP tools with workspace agents',
+                detail: `Workspace: ${this.ws(c.workspaceId).root}\nConnection: ${c.server.name}\nTools: ${c.server.tools.join(', ')}\n\nEvery agent selected for a new workflow in this workspace, including repository agents, can request these tools. Each MCP tool call still requires separate approval. Existing approvals are invalidated.`,
+              },
+              c.workspaceId,
+              { serverId: old.id, version: old.version, proposed: c.server },
+            ))
           )
             throw new Error('Workspace MCP sharing cancelled.');
         }
@@ -869,9 +940,9 @@ export class Service {
           (autoApprovePlans && !current.autoApprovePlans) ||
           (autoContinueTokens && !current.autoContinueTokens)
         ) {
-          const accepted = await this.host('confirm', {
+          const accepted = await this.confirm({
             title: 'Enable automatic approvals',
-            detail: `Automatically approve verified workflow scopes: ${c.autoApprovePlans ? 'yes' : 'no'}\nAutomatically continue past observed token thresholds: ${c.autoContinueTokens ? 'yes' : 'no'}\n\nThis can start approved work and increase Copilot usage. Shell commands, MCP access, and result integration still require separate approval.`,
+            detail: `Automatically approve verified workflow scopes: ${c.autoApprovePlans ? 'yes' : 'no'}\nAutomatically continue past observed token thresholds: ${c.autoContinueTokens ? 'yes' : 'no'}\n\nThis can start approved work and increase Copilot usage. Shell commands, MCP access, and result integration retain separate exact-scope approval checks.`,
           });
           if (!accepted) throw new Error('Automatic approvals were not enabled.');
         }
@@ -1459,7 +1530,16 @@ export class Service {
       worker.on('message', async (m) => {
         try {
           if (m.type === 'permission') {
-            const allowed = await this.host('confirm', { title: m.title, detail: m.detail });
+            if (
+              m.title === 'Approve MCP tool call' &&
+              (typeof m.scopeHash !== 'string' || !/^[a-f0-9]{64}$/.test(m.scopeHash))
+            )
+              throw new Error('Missing exact MCP approval scope.');
+            const allowed = await this.confirm(
+              { title: m.title, detail: m.detail },
+              attempt?.workspaceId,
+              m.scopeHash,
+            );
             if (attempt) {
               const approval = {
                 id: randomUUID(),
@@ -1584,10 +1664,14 @@ export class Service {
         throw new Error('Wait for workspace runs to finish before removing a connection.');
       const bound = this.store.list<Agent>('agents').filter((agent) => agent.mcpIds.includes(id));
       if (
-        !(await this.host('confirm', {
-          title: 'Remove MCP connection?',
-          detail: `Connection: ${server.name}\nRepository: ${ws.root}\nThis removes the saved connection and its app secret, and unbinds it from ${bound.length} custom agent(s). Existing workflow approvals become stale.`,
-        }))
+        !(await this.confirm(
+          {
+            title: 'Remove MCP connection?',
+            detail: `Connection: ${server.name}\nRepository: ${ws.root}\nThis removes the saved connection and its app secret, and unbinds it from ${bound.length} custom agent(s). Existing workflow approvals become stale.`,
+          },
+          ws.id,
+          { serverId: server.id, version: server.version },
+        ))
       )
         return;
       if (
@@ -1625,10 +1709,14 @@ export class Service {
       return;
     }
     if (
-      !(await this.host('confirm', {
-        title: action === 'authenticate' ? 'Authenticate MCP connection' : 'Test MCP connection',
-        detail: `${server.name}\n${server.endpoint}\nArguments: ${JSON.stringify(server.args)}\nDirectory: ${ws.root}\nSecret destination: ${server.secretName}\nThis explicitly starts the connection.`,
-      }))
+      !(await this.confirm(
+        {
+          title: action === 'authenticate' ? 'Authenticate MCP connection' : 'Test MCP connection',
+          detail: `${server.name}\n${server.endpoint}\nArguments: ${JSON.stringify(server.args)}\nDirectory: ${ws.root}\nSecret destination: ${server.secretName}\nThis explicitly starts the connection.`,
+        },
+        ws.id,
+        { serverId: server.id, version: server.version, action },
+      ))
     )
       throw new Error('Connection action cancelled');
     server.state = 'starting';
@@ -1694,6 +1782,10 @@ export class Service {
       attempt = this.store.get<Attempt>('attempts', attemptId, workspaceId);
     if (attempt.state !== 'succeeded' || !attempt.commit || attempt.integrated)
       throw new Error('No unintegrated successful result');
+    if (!attempt.diff)
+      throw new Error(
+        'This agent produced no file changes to integrate. Review its result and task instructions.',
+      );
     const run = this.store.get<Run>('runs', attempt.runId, workspaceId);
     const plan = this.store.get<Plan>('plans', run.planId, workspaceId);
     const outstanding = prerequisiteOrder(plan.tasks, attempt.taskId)
@@ -1704,10 +1796,14 @@ export class Service {
         `Integrate prerequisites first: ${outstanding.map((a) => a.taskId).join(', ')}`,
       );
     if (
-      !(await this.host('confirm', {
-        title: 'Integrate reviewed result',
-        detail: `Repository: ${ws.root}\nCommit: ${attempt.commit}\n\n${attempt.diff?.slice(0, 16000) || 'No changes'}\n\nCherry-pick this result into the current branch? No push is performed.`,
-      }))
+      !(await this.confirm(
+        {
+          title: 'Integrate reviewed result',
+          detail: `Repository: ${ws.root}\nCommit: ${attempt.commit}\n\n${attempt.diff?.slice(0, 16000) || 'No changes'}\n\nCherry-pick this result into the current branch? No push is performed.`,
+        },
+        workspaceId,
+        { attemptId, commit: attempt.commit, diffHash: hash(attempt.diff) },
+      ))
     )
       throw new Error('Integration cancelled');
     return this.locked(ws.commonDir, async () => {
@@ -1725,23 +1821,28 @@ export class Service {
       if (this.store.list<Attempt>('attempts', workspaceId).some((a) => a.state === 'running'))
         throw new Error('Wait for workspace attempts to finish before integration.');
       try {
-        if (attempt.diff)
-          await git(ws.root, [
-            '-c',
-            'user.name=Agentic Tooling',
-            '-c',
-            'user.email=agentic@localhost',
-            '-c',
-            'commit.gpgsign=false',
-            'cherry-pick',
-            attempt.commit!,
-          ]);
+        await git(ws.root, [
+          '-c',
+          'user.name=Agentic Tooling',
+          '-c',
+          'user.email=agentic@localhost',
+          '-c',
+          'commit.gpgsign=false',
+          'cherry-pick',
+          attempt.commit!,
+        ]);
       } catch (e) {
         throw new Error(
           `Integration stopped. Review and resolve the Git cherry-pick state in ${ws.root}. ${(e as Error).message}`,
         );
       }
-      this.store.put('attempts', attempt.id, { ...attempt, integrated: true }, workspaceId);
+      const integratedCommit = await git(ws.root, ['rev-parse', 'HEAD']);
+      this.store.put(
+        'attempts',
+        attempt.id,
+        { ...attempt, integrated: true, integratedCommit, integratedAt: new Date().toISOString() },
+        workspaceId,
+      );
       this.invalidate(workspaceId);
       return;
     });

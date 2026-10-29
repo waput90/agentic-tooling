@@ -45,13 +45,35 @@ try {
   await approved.getByRole('heading', { name: 'Enable automatic approvals' }).waitFor();
   await mkdir('test-results', { recursive: true });
   await approved.screenshot({ path: 'test-results/confirmation.png' });
-  await approved.getByRole('button', { name: 'Approve' }).click();
+  await approved.getByRole('button', { name: 'Approve', exact: true }).click();
   await page.waitForFunction(
     async () => (await window.desktop.request({ type: 'snapshot' })).settings.autoApprovePlans,
   );
   await page.evaluate(async () => {
     const settings = (await window.desktop.request({ type: 'snapshot' })).settings;
     await window.desktop.request({ type: 'settings', ...settings, autoApprovePlans: false });
+  });
+  const rememberDialog = app.waitForEvent('window');
+  await page
+    .getByLabel('Automatically continue when observed tokens pass the plan threshold')
+    .click();
+  const remembered = await rememberDialog;
+  await remembered.getByRole('heading', { name: 'Enable automatic approvals' }).waitFor();
+  await remembered.screenshot({ path: 'test-results/confirmation-remember.png' });
+  await remembered.getByRole('button', { name: "Approve & don't ask again" }).click();
+  await page.waitForFunction(
+    async () =>
+      (await window.desktop.request({ type: 'snapshot' })).rememberedApprovals.length === 1,
+  );
+  await page.getByRole('heading', { name: 'Remembered approvals' }).waitFor();
+  await page.getByRole('button', { name: 'Remove', exact: true }).click();
+  await page.waitForFunction(
+    async () =>
+      (await window.desktop.request({ type: 'snapshot' })).rememberedApprovals.length === 0,
+  );
+  await page.evaluate(async () => {
+    const settings = (await window.desktop.request({ type: 'snapshot' })).settings;
+    await window.desktop.request({ type: 'settings', ...settings, autoContinueTokens: false });
   });
   assert.equal(await page.getByLabel('Enable Headroom for new plans').isChecked(), false);
   const headroomFixture = createServer(async (req, res) => {

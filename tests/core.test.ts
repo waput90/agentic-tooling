@@ -219,6 +219,100 @@ test('isolated worktree changes leave source checkout untouched and provide a re
   assert.notEqual(result.commit, base);
   assert.match(await readFile(join(root, 'source.ts'), 'utf8'), /value = 1/);
 });
+test('remembered approval matches exact scope and can be revoked in settings', async () => {
+  let prompts = 0;
+  const service = new Service(
+    await temp(),
+    () => {},
+    async () => {
+      prompts++;
+      return 'remember';
+    },
+  );
+  try {
+    const original = service.settings();
+    await service.command({ type: 'settings', ...original, autoApprovePlans: true });
+    assert.equal(prompts, 1);
+    const saved = service.snapshot().rememberedApprovals;
+    assert.equal(saved.length, 1);
+    assert.equal(saved[0].title, 'Enable automatic approvals');
+    await service.command({ type: 'settings', ...service.settings(), autoApprovePlans: false });
+    await service.command({ type: 'settings', ...service.settings(), autoApprovePlans: true });
+    assert.equal(prompts, 1);
+    await service.command({ type: 'forgetApproval', approvalId: saved[0].id });
+    assert.equal(service.snapshot().rememberedApprovals.length, 0);
+    await service.command({ type: 'settings', ...service.settings(), autoApprovePlans: false });
+    await service.command({ type: 'settings', ...service.settings(), autoApprovePlans: true });
+    assert.equal(prompts, 2);
+    await service.command({ type: 'settings', ...service.settings(), autoContinueTokens: true });
+    assert.equal(prompts, 3, 'changed prompt details require a fresh decision');
+    await service.confirm({ title: 'Approve command', detail: 'git status' }, 'workspace-one');
+    await service.confirm({ title: 'Approve command', detail: 'git status' }, 'workspace-one');
+    assert.equal(prompts, 4);
+    await service.confirm({ title: 'Approve command', detail: 'git status' }, 'workspace-two');
+    assert.equal(prompts, 5, 'the same request in another workspace needs approval');
+    await service.confirm(
+      { title: 'Approve MCP tool call', detail: '[REDACTED]' },
+      'workspace-one',
+      'raw-one',
+    );
+    await service.confirm(
+      { title: 'Approve MCP tool call', detail: '[REDACTED]' },
+      'workspace-one',
+      'raw-two',
+    );
+    assert.equal(prompts, 7, 'changed hidden request details need approval too');
+  } finally {
+    await service.command({ type: 'shutdown' });
+    service.store.close();
+  }
+});
+test('integration rejects no-change attempts and records the applied repository commit', async () => {
+  const service = new Service(
+    await temp(),
+    () => {},
+    async () => true,
+  );
+  try {
+    const ws = (await service.command({ type: 'addWorkspace', path: await repo() })) as Workspace;
+    const base = await git(ws.root, ['rev-parse', 'HEAD']);
+    const tree = join(await temp(), 'task');
+    await worktree(ws.root, tree, base);
+    const run = { id: 'run', workspaceId: ws.id, planId: 'plan', state: 'succeeded' } as Run;
+    const plan = { id: 'plan', workspaceId: ws.id, tasks: [task('task')] } as Plan;
+    service.store.put('plans', plan.id, plan, ws.id);
+    service.store.put('runs', run.id, run, ws.id);
+    const attempt = {
+      id: 'run:task',
+      workspaceId: ws.id,
+      runId: run.id,
+      taskId: 'task',
+      state: 'succeeded',
+      worktree: tree,
+      commit: base,
+      diff: '',
+    } as Attempt;
+    service.store.put('attempts', attempt.id, attempt, ws.id);
+    await assert.rejects(
+      service.command({ type: 'integrate', workspaceId: ws.id, attemptId: attempt.id }),
+      /no file changes/,
+    );
+    assert.equal(service.store.get<Attempt>('attempts', attempt.id, ws.id).integrated, undefined);
+    await writeFile(join(tree, 'source.ts'), 'export const value = 2;\n');
+    const changes = await snapshotChanges(tree);
+    service.store.put('attempts', attempt.id, { ...attempt, ...changes }, ws.id);
+    await service.command({ type: 'integrate', workspaceId: ws.id, attemptId: attempt.id });
+    const applied = service.store.get<Attempt>('attempts', attempt.id, ws.id);
+    assert.equal(applied.integrated, true);
+    assert.equal(applied.integratedCommit, await git(ws.root, ['rev-parse', 'HEAD']));
+    assert.notEqual(applied.integratedCommit, base);
+    assert.match(await readFile(join(ws.root, 'source.ts'), 'utf8'), /value = 2/);
+    assert.equal(await git(ws.root, ['status', '--porcelain', '--', 'source.ts']), '');
+  } finally {
+    await service.command({ type: 'shutdown' });
+    service.store.close();
+  }
+});
 test('direct execution fails before approval; source edits invalidate an approved snapshot; recovery never replays work', async () => {
   const root = await repo(),
     dataDir = await temp();

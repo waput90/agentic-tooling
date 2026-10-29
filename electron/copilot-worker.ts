@@ -13,7 +13,7 @@ import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { safePath, safeEnvironment, redact, approvedAppTool } from './core/policy';
+import { safePath, safeEnvironment, redact, approvedAppTool, hash } from './core/policy';
 import { queryGraph } from './core/graphify';
 import type { ResolvedAgent, HeadroomConfig } from '../src/shared';
 import { Headroom } from './core/headroom';
@@ -145,12 +145,12 @@ parentPort?.on('message', (m) => {
     approvals.delete(m.id);
   }
 });
-async function confirm(title: string, detail: string) {
+async function confirm(title: string, detail: string, scopeHash?: string) {
   if (cancelled) return false;
   const id = randomUUID();
   return new Promise<boolean>((resolve) => {
     approvals.set(id, resolve);
-    parentPort?.postMessage({ type: 'permission', id, title, detail });
+    parentPort?.postMessage({ type: 'permission', id, title, detail, scopeHash });
   });
 }
 function active() {
@@ -433,6 +433,7 @@ async function main() {
       return (await confirm(
         'Approve MCP tool call',
         JSON.stringify(redact(request, job.secrets), null, 2),
+        hash({ request, mcp: job.mcp }),
       ))
         ? { kind: 'approve-once' }
         : { kind: 'reject', feedback: 'User denied access' };

@@ -776,7 +776,7 @@
       "label": "Host",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L38",
+      "source_location": "L39",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast"
@@ -786,7 +786,7 @@
       "label": "Service",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L39",
+      "source_location": "L40",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast"
@@ -796,7 +796,7 @@
       "label": ".constructor()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L53",
+      "source_location": "L54",
       "_callable": true,
       "_origin": "ast"
     },
@@ -805,7 +805,25 @@
       "label": ".ws()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L94",
+      "source_location": "L95",
+      "_callable": true,
+      "_origin": "ast"
+    },
+    {
+      "id": "electron_core_service_service_rememberedapprovals",
+      "label": ".rememberedApprovals()",
+      "file_type": "code",
+      "source_file": "electron/core/service.ts",
+      "source_location": "L98",
+      "_callable": true,
+      "_origin": "ast"
+    },
+    {
+      "id": "electron_core_service_service_confirm",
+      "label": ".confirm()",
+      "file_type": "code",
+      "source_file": "electron/core/service.ts",
+      "source_location": "L105",
       "_callable": true,
       "_origin": "ast"
     },
@@ -814,7 +832,7 @@
       "label": ".settings()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L97",
+      "source_location": "L125",
       "_callable": true,
       "_origin": "ast"
     },
@@ -823,7 +841,7 @@
       "label": ".snapshot()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L117",
+      "source_location": "L145",
       "_callable": true,
       "_origin": "ast"
     },
@@ -832,7 +850,7 @@
       "label": ".headroomConfig()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L133",
+      "source_location": "L162",
       "_callable": true,
       "_origin": "ast"
     },
@@ -841,7 +859,7 @@
       "label": ".templates()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L140",
+      "source_location": "L169",
       "_callable": true,
       "_origin": "ast"
     },
@@ -850,7 +868,7 @@
       "label": ".command()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L147",
+      "source_location": "L176",
       "_callable": true,
       "_origin": "ast"
     },
@@ -859,7 +877,7 @@
       "label": ".dispatch()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L156",
+      "source_location": "L185",
       "_callable": true,
       "_origin": "ast"
     },
@@ -868,7 +886,7 @@
       "label": ".invalidate()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1042",
+      "source_location": "L1113",
       "_callable": true,
       "_origin": "ast"
     },
@@ -877,7 +895,7 @@
       "label": ".agentConnections()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1047",
+      "source_location": "L1118",
       "_callable": true,
       "_origin": "ast"
     },
@@ -886,7 +904,7 @@
       "label": ".makePlan()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1066",
+      "source_location": "L1137",
       "_callable": true,
       "_origin": "ast"
     },
@@ -895,7 +913,7 @@
       "label": ".verify()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1143",
+      "source_location": "L1214",
       "_callable": true,
       "_origin": "ast"
     },
@@ -904,7 +922,7 @@
       "label": ".newAttempt()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1210",
+      "source_location": "L1281",
       "_callable": true,
       "_origin": "ast"
     },
@@ -913,7 +931,7 @@
       "label": ".locked()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1223",
+      "source_location": "L1294",
       "_callable": true,
       "_origin": "ast"
     },
@@ -922,7 +940,7 @@
       "label": ".tick()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1233",
+      "source_location": "L1304",
       "_callable": true,
       "_origin": "ast"
     },
@@ -931,7 +949,7 @@
       "label": ".executeAttempt()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1333",
+      "source_location": "L1404",
       "_callable": true,
       "_origin": "ast"
     },
@@ -940,7 +958,7 @@
       "label": ".worker()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1441",
+      "source_location": "L1512",
       "_callable": true,
       "_origin": "ast"
     },
@@ -949,7 +967,7 @@
       "label": ".mcpConfigs()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1525",
+      "source_location": "L1605",
       "_callable": true,
       "_origin": "ast"
     },
@@ -958,7 +976,7 @@
       "label": ".mcpAction()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1558",
+      "source_location": "L1638",
       "_callable": true,
       "_origin": "ast"
     },
@@ -967,7 +985,7 @@
       "label": ".integrate()",
       "file_type": "code",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1692",
+      "source_location": "L1780",
       "_callable": true,
       "_origin": "ast"
     },
@@ -1136,7 +1154,7 @@
       "label": "updateState",
       "file_type": "code",
       "source_file": "electron/main.ts",
-      "source_location": "L27",
+      "source_location": "L28",
       "_origin": "ast"
     },
     {
@@ -1144,7 +1162,7 @@
       "label": "pending",
       "file_type": "code",
       "source_file": "electron/main.ts",
-      "source_location": "L28",
+      "source_location": "L29",
       "_origin": "ast"
     },
     {
@@ -1152,7 +1170,25 @@
       "label": "request()",
       "file_type": "code",
       "source_file": "electron/main.ts",
-      "source_location": "L29",
+      "source_location": "L30",
+      "_callable": true,
+      "_origin": "ast"
+    },
+    {
+      "id": "electron_main_desktopconfirm",
+      "label": "desktopConfirm()",
+      "file_type": "code",
+      "source_file": "electron/main.ts",
+      "source_location": "L36",
+      "_callable": true,
+      "_origin": "ast"
+    },
+    {
+      "id": "electron_main_filedigest",
+      "label": "fileDigest()",
+      "file_type": "code",
+      "source_file": "electron/main.ts",
+      "source_location": "L42",
       "_callable": true,
       "_origin": "ast"
     },
@@ -1161,7 +1197,7 @@
       "label": "changed()",
       "file_type": "code",
       "source_file": "electron/main.ts",
-      "source_location": "L35",
+      "source_location": "L47",
       "_callable": true,
       "_origin": "ast"
     },
@@ -1170,7 +1206,7 @@
       "label": "confirm()",
       "file_type": "code",
       "source_file": "electron/main.ts",
-      "source_location": "L38",
+      "source_location": "L50",
       "_callable": true,
       "_origin": "ast"
     },
@@ -1179,7 +1215,7 @@
       "label": "shutdown()",
       "file_type": "code",
       "source_file": "electron/main.ts",
-      "source_location": "L101",
+      "source_location": "L115",
       "_callable": true,
       "_origin": "ast"
     },
@@ -1188,7 +1224,7 @@
       "label": "boot()",
       "file_type": "code",
       "source_file": "electron/main.ts",
-      "source_location": "L107",
+      "source_location": "L121",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2141,7 +2177,7 @@
       "label": "Send",
       "file_type": "code",
       "source_file": "src/App.tsx",
-      "source_location": "L885",
+      "source_location": "L886",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast"
@@ -2151,7 +2187,7 @@
       "label": "Planning()",
       "file_type": "code",
       "source_file": "src/App.tsx",
-      "source_location": "L886",
+      "source_location": "L887",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2160,7 +2196,7 @@
       "label": "blankAgent",
       "file_type": "code",
       "source_file": "src/App.tsx",
-      "source_location": "L924",
+      "source_location": "L925",
       "_origin": "ast"
     },
     {
@@ -2168,7 +2204,7 @@
       "label": "Agents()",
       "file_type": "code",
       "source_file": "src/App.tsx",
-      "source_location": "L934",
+      "source_location": "L935",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2177,7 +2213,7 @@
       "label": "Workflows()",
       "file_type": "code",
       "source_file": "src/App.tsx",
-      "source_location": "L1104",
+      "source_location": "L1105",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2186,7 +2222,7 @@
       "label": "PlanCard()",
       "file_type": "code",
       "source_file": "src/App.tsx",
-      "source_location": "L1555",
+      "source_location": "L1556",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2195,7 +2231,7 @@
       "label": "DraftEditor()",
       "file_type": "code",
       "source_file": "src/App.tsx",
-      "source_location": "L1693",
+      "source_location": "L1694",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2204,7 +2240,7 @@
       "label": "UsageView()",
       "file_type": "code",
       "source_file": "src/App.tsx",
-      "source_location": "L1911",
+      "source_location": "L1912",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2213,7 +2249,7 @@
       "label": "Context()",
       "file_type": "code",
       "source_file": "src/App.tsx",
-      "source_location": "L2067",
+      "source_location": "L2068",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2222,7 +2258,7 @@
       "label": "McpDirectory()",
       "file_type": "code",
       "source_file": "src/App.tsx",
-      "source_location": "L2162",
+      "source_location": "L2163",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2231,7 +2267,7 @@
       "label": "Connections()",
       "file_type": "code",
       "source_file": "src/App.tsx",
-      "source_location": "L2276",
+      "source_location": "L2277",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2240,7 +2276,7 @@
       "label": "Settings()",
       "file_type": "code",
       "source_file": "src/App.tsx",
-      "source_location": "L2688",
+      "source_location": "L2689",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2249,7 +2285,7 @@
       "label": "AttemptDetails()",
       "file_type": "code",
       "source_file": "src/App.tsx",
-      "source_location": "L3081",
+      "source_location": "L3137",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2464,11 +2500,21 @@
       "_origin": "ast"
     },
     {
+      "id": "src_shared_rememberedapproval",
+      "label": "RememberedApproval",
+      "file_type": "code",
+      "source_file": "src/shared.ts",
+      "source_location": "L159",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast"
+    },
+    {
       "id": "src_shared_contextitem",
       "label": "ContextItem",
       "file_type": "code",
       "source_file": "src/shared.ts",
-      "source_location": "L157",
+      "source_location": "L166",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast"
@@ -2478,7 +2524,7 @@
       "label": "Usage",
       "file_type": "code",
       "source_file": "src/shared.ts",
-      "source_location": "L164",
+      "source_location": "L173",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast"
@@ -2488,7 +2534,7 @@
       "label": "Snapshot",
       "file_type": "code",
       "source_file": "src/shared.ts",
-      "source_location": "L182",
+      "source_location": "L191",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast"
@@ -2498,7 +2544,7 @@
       "label": "commandSchema",
       "file_type": "code",
       "source_file": "src/shared.ts",
-      "source_location": "L224",
+      "source_location": "L234",
       "_origin": "ast"
     },
     {
@@ -2506,7 +2552,7 @@
       "label": "Command",
       "file_type": "code",
       "source_file": "src/shared.ts",
-      "source_location": "L338",
+      "source_location": "L349",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast"
@@ -2516,7 +2562,7 @@
       "label": "DesktopAPI",
       "file_type": "code",
       "source_file": "src/shared.ts",
-      "source_location": "L339",
+      "source_location": "L350",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast"
@@ -2526,7 +2572,7 @@
       "label": ".request()",
       "file_type": "code",
       "source_file": "src/shared.ts",
-      "source_location": "L340",
+      "source_location": "L351",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2535,7 +2581,7 @@
       "label": ".chooseRepository()",
       "file_type": "code",
       "source_file": "src/shared.ts",
-      "source_location": "L341",
+      "source_location": "L352",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2544,7 +2590,7 @@
       "label": ".backup()",
       "file_type": "code",
       "source_file": "src/shared.ts",
-      "source_location": "L342",
+      "source_location": "L353",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2553,7 +2599,7 @@
       "label": ".restore()",
       "file_type": "code",
       "source_file": "src/shared.ts",
-      "source_location": "L343",
+      "source_location": "L354",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2562,7 +2608,7 @@
       "label": ".exportDefinitions()",
       "file_type": "code",
       "source_file": "src/shared.ts",
-      "source_location": "L344",
+      "source_location": "L355",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2571,7 +2617,7 @@
       "label": ".importDefinitions()",
       "file_type": "code",
       "source_file": "src/shared.ts",
-      "source_location": "L345",
+      "source_location": "L356",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2580,7 +2626,7 @@
       "label": ".onChange()",
       "file_type": "code",
       "source_file": "src/shared.ts",
-      "source_location": "L346",
+      "source_location": "L357",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2589,7 +2635,7 @@
       "label": ".update()",
       "file_type": "code",
       "source_file": "src/shared.ts",
-      "source_location": "L347",
+      "source_location": "L358",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2598,7 +2644,7 @@
       "label": ".version()",
       "file_type": "code",
       "source_file": "src/shared.ts",
-      "source_location": "L348",
+      "source_location": "L359",
       "_callable": true,
       "_origin": "ast"
     },
@@ -2607,7 +2653,7 @@
       "label": "Window",
       "file_type": "code",
       "source_file": "src/shared.ts",
-      "source_location": "L351",
+      "source_location": "L362",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast"
@@ -3096,6 +3142,17 @@
     {
       "source": "electron_copilot_worker",
       "target": "electron_core_policy_approvedapptool",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/copilot-worker.ts",
+      "source_location": "L16",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_copilot_worker",
+      "target": "electron_core_policy_hash",
       "relation": "imports",
       "context": "import",
       "confidence": "EXTRACTED",
@@ -4733,6 +4790,17 @@
     },
     {
       "source": "electron_core_service",
+      "target": "src_shared_rememberedapproval",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/core/service.ts",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_core_service",
       "target": "src_shared_run",
       "relation": "imports",
       "context": "import",
@@ -4804,7 +4872,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L28",
+      "source_location": "L29",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4815,7 +4883,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L28",
+      "source_location": "L29",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4826,7 +4894,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L29",
+      "source_location": "L30",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4837,7 +4905,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L29",
+      "source_location": "L30",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4848,7 +4916,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L29",
+      "source_location": "L30",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4859,7 +4927,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L29",
+      "source_location": "L30",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4870,7 +4938,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L29",
+      "source_location": "L30",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4881,7 +4949,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L29",
+      "source_location": "L30",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4892,7 +4960,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L30",
+      "source_location": "L31",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4903,7 +4971,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L30",
+      "source_location": "L31",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4914,7 +4982,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L30",
+      "source_location": "L31",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4925,7 +4993,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L30",
+      "source_location": "L31",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4936,7 +5004,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L30",
+      "source_location": "L31",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4947,7 +5015,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L30",
+      "source_location": "L31",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4958,7 +5026,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L31",
+      "source_location": "L32",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4969,7 +5037,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L31",
+      "source_location": "L32",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4980,7 +5048,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L31",
+      "source_location": "L32",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -4991,7 +5059,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L32",
+      "source_location": "L33",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5002,7 +5070,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L32",
+      "source_location": "L33",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5013,7 +5081,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L33",
+      "source_location": "L34",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5024,7 +5092,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L33",
+      "source_location": "L34",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5035,7 +5103,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L34",
+      "source_location": "L35",
       "weight": 1.0,
       "type_only": true,
       "_origin": "ast"
@@ -5047,7 +5115,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L34",
+      "source_location": "L35",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5058,7 +5126,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L35",
+      "source_location": "L36",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5069,7 +5137,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L35",
+      "source_location": "L36",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5080,7 +5148,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L35",
+      "source_location": "L36",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5091,7 +5159,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L36",
+      "source_location": "L37",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5102,7 +5170,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L36",
+      "source_location": "L37",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5112,7 +5180,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L38",
+      "source_location": "L39",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5122,7 +5190,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L39",
+      "source_location": "L40",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5132,7 +5200,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L53",
+      "source_location": "L54",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5142,7 +5210,27 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L94",
+      "source_location": "L95",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_core_service_service",
+      "target": "electron_core_service_service_rememberedapprovals",
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/core/service.ts",
+      "source_location": "L98",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_core_service_service",
+      "target": "electron_core_service_service_confirm",
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/core/service.ts",
+      "source_location": "L105",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5152,7 +5240,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L97",
+      "source_location": "L125",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5162,7 +5250,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L117",
+      "source_location": "L145",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5172,7 +5260,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L133",
+      "source_location": "L162",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5182,7 +5270,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L140",
+      "source_location": "L169",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5192,7 +5280,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L147",
+      "source_location": "L176",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5202,7 +5290,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L156",
+      "source_location": "L185",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5212,7 +5300,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1042",
+      "source_location": "L1113",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5222,7 +5310,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1047",
+      "source_location": "L1118",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5232,7 +5320,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1066",
+      "source_location": "L1137",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5242,7 +5330,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1143",
+      "source_location": "L1214",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5252,7 +5340,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1210",
+      "source_location": "L1281",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5262,7 +5350,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1223",
+      "source_location": "L1294",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5272,7 +5360,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1233",
+      "source_location": "L1304",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5282,7 +5370,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1333",
+      "source_location": "L1404",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5292,7 +5380,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1441",
+      "source_location": "L1512",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5302,7 +5390,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1525",
+      "source_location": "L1605",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5312,7 +5400,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1558",
+      "source_location": "L1638",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5322,7 +5410,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1692",
+      "source_location": "L1780",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5333,7 +5421,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L86",
+      "source_location": "L87",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5344,7 +5432,18 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L91",
+      "source_location": "L92",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_core_service_service_confirm",
+      "target": "electron_core_service_service_rememberedapprovals",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/core/service.ts",
+      "source_location": "L107",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5355,7 +5454,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L119",
+      "source_location": "L147",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5366,7 +5465,18 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L120",
+      "source_location": "L148",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_core_service_service_snapshot",
+      "target": "electron_core_service_service_rememberedapprovals",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/core/service.ts",
+      "source_location": "L154",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5377,7 +5487,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L129",
+      "source_location": "L158",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5388,7 +5498,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L151",
+      "source_location": "L180",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5399,7 +5509,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L152",
+      "source_location": "L181",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5410,35 +5520,13 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L170",
+      "source_location": "L199",
       "weight": 1.0,
       "_origin": "ast"
     },
     {
       "source": "electron_core_service_service_dispatch",
       "target": "electron_core_service_service_invalidate",
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "electron/core/service.ts",
-      "source_location": "L171",
-      "weight": 1.0,
-      "_origin": "ast"
-    },
-    {
-      "source": "electron_core_service_service_dispatch",
-      "target": "electron_core_service_service_snapshot",
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "electron/core/service.ts",
-      "source_location": "L176",
-      "weight": 1.0,
-      "_origin": "ast"
-    },
-    {
-      "source": "electron_core_service_service_dispatch",
-      "target": "electron_core_service_service_ws",
       "relation": "calls",
       "context": "call",
       "confidence": "EXTRACTED",
@@ -5449,12 +5537,34 @@
     },
     {
       "source": "electron_core_service_service_dispatch",
+      "target": "electron_core_service_service_snapshot",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/core/service.ts",
+      "source_location": "L205",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_core_service_service_dispatch",
+      "target": "electron_core_service_service_ws",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/core/service.ts",
+      "source_location": "L229",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_core_service_service_dispatch",
       "target": "electron_core_service_service_worker",
       "relation": "calls",
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L226",
+      "source_location": "L255",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5465,7 +5575,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L237",
+      "source_location": "L266",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5476,7 +5586,18 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L259",
+      "source_location": "L288",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_core_service_service_dispatch",
+      "target": "electron_core_service_service_confirm",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/core/service.ts",
+      "source_location": "L289",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5487,7 +5608,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L323",
+      "source_location": "L356",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5498,7 +5619,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L446",
+      "source_location": "L483",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5509,7 +5630,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L588",
+      "source_location": "L629",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5520,7 +5641,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L674",
+      "source_location": "L722",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5531,7 +5652,18 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L752",
+      "source_location": "L808",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_core_service_service_dispatch",
+      "target": "electron_core_service_service_rememberedapprovals",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/core/service.ts",
+      "source_location": "L810",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5542,7 +5674,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L836",
+      "source_location": "L907",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5553,7 +5685,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L904",
+      "source_location": "L975",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5564,7 +5696,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1073",
+      "source_location": "L1144",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5575,7 +5707,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1083",
+      "source_location": "L1154",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5586,7 +5718,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1095",
+      "source_location": "L1166",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5597,7 +5729,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1096",
+      "source_location": "L1167",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5608,7 +5740,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1115",
+      "source_location": "L1186",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5619,7 +5751,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1151",
+      "source_location": "L1222",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5630,7 +5762,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1161",
+      "source_location": "L1232",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5641,7 +5773,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1173",
+      "source_location": "L1244",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5652,7 +5784,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1174",
+      "source_location": "L1245",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5663,7 +5795,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1240",
+      "source_location": "L1311",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5674,7 +5806,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1324",
+      "source_location": "L1395",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5685,7 +5817,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1338",
+      "source_location": "L1409",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5696,7 +5828,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1346",
+      "source_location": "L1417",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5707,7 +5839,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1375",
+      "source_location": "L1446",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5718,7 +5850,18 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1383",
+      "source_location": "L1454",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_core_service_service_worker",
+      "target": "electron_core_service_service_confirm",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/core/service.ts",
+      "source_location": "L1538",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5729,7 +5872,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1559",
+      "source_location": "L1639",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5740,7 +5883,18 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1575",
+      "source_location": "L1655",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_core_service_service_mcpaction",
+      "target": "electron_core_service_service_confirm",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/core/service.ts",
+      "source_location": "L1667",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5751,7 +5905,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1638",
+      "source_location": "L1726",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5762,7 +5916,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1649",
+      "source_location": "L1737",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5773,7 +5927,18 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1693",
+      "source_location": "L1781",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_core_service_service_integrate",
+      "target": "electron_core_service_service_confirm",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/core/service.ts",
+      "source_location": "L1799",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5784,7 +5949,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1713",
+      "source_location": "L1809",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -5795,7 +5960,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1745",
+      "source_location": "L1846",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6117,7 +6282,7 @@
     },
     {
       "source": "electron_main",
-      "target": "ref_node_path",
+      "target": "ref_node_fs",
       "relation": "imports_from",
       "context": "import",
       "confidence": "EXTRACTED",
@@ -6128,7 +6293,7 @@
     },
     {
       "source": "electron_main",
-      "target": "ref_node_url",
+      "target": "ref_node_path",
       "relation": "imports_from",
       "context": "import",
       "confidence": "EXTRACTED",
@@ -6139,7 +6304,7 @@
     },
     {
       "source": "electron_main",
-      "target": "ref_node_fs",
+      "target": "ref_node_url",
       "relation": "imports_from",
       "context": "import",
       "confidence": "EXTRACTED",
@@ -6155,7 +6320,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L16",
+      "source_location": "L17",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6166,7 +6331,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L17",
+      "source_location": "L18",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6177,7 +6342,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L17",
+      "source_location": "L18",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6188,7 +6353,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L17",
+      "source_location": "L18",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6199,7 +6364,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L17",
+      "source_location": "L18",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6210,7 +6375,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L18",
+      "source_location": "L19",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6221,7 +6386,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L18",
+      "source_location": "L19",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6232,7 +6397,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L18",
+      "source_location": "L19",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6242,7 +6407,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L27",
+      "source_location": "L28",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6252,7 +6417,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L28",
+      "source_location": "L29",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6262,7 +6427,27 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L29",
+      "source_location": "L30",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_main",
+      "target": "electron_main_desktopconfirm",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/main.ts",
+      "source_location": "L36",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_main",
+      "target": "electron_main_filedigest",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/main.ts",
+      "source_location": "L42",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6272,7 +6457,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L35",
+      "source_location": "L47",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6282,7 +6467,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L38",
+      "source_location": "L50",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6292,7 +6477,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L101",
+      "source_location": "L115",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6302,7 +6487,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L107",
+      "source_location": "L121",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6313,7 +6498,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L104",
+      "source_location": "L118",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6324,7 +6509,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L113",
+      "source_location": "L127",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6335,7 +6520,18 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L126",
+      "source_location": "L141",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_main_boot",
+      "target": "electron_main_desktopconfirm",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/main.ts",
+      "source_location": "L154",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6346,7 +6542,18 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L194",
+      "source_location": "L211",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_main_boot",
+      "target": "electron_main_filedigest",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/main.ts",
+      "source_location": "L257",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6357,7 +6564,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L247",
+      "source_location": "L268",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6368,7 +6575,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L340",
+      "source_location": "L363",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -6380,7 +6587,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.85,
       "source_file": "electron/main.ts",
-      "source_location": "L332",
+      "source_location": "L355",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8052,7 +8259,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L885",
+      "source_location": "L886",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8062,7 +8269,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L886",
+      "source_location": "L887",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8072,7 +8279,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L924",
+      "source_location": "L925",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8082,7 +8289,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L934",
+      "source_location": "L935",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8092,7 +8299,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1104",
+      "source_location": "L1105",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8102,7 +8309,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1555",
+      "source_location": "L1556",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8112,7 +8319,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1693",
+      "source_location": "L1694",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8122,7 +8329,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1911",
+      "source_location": "L1912",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8132,7 +8339,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2067",
+      "source_location": "L2068",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8142,7 +8349,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2162",
+      "source_location": "L2163",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8152,7 +8359,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2276",
+      "source_location": "L2277",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8162,7 +8369,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2688",
+      "source_location": "L2689",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8172,7 +8379,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L3081",
+      "source_location": "L3137",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8392,7 +8599,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L949",
+      "source_location": "L950",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8403,7 +8610,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L956",
+      "source_location": "L957",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8414,7 +8621,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L975",
+      "source_location": "L976",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8425,7 +8632,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1010",
+      "source_location": "L1011",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8436,7 +8643,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1201",
+      "source_location": "L1202",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8447,7 +8654,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1292",
+      "source_location": "L1293",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8458,7 +8665,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1546",
+      "source_location": "L1547",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8469,7 +8676,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1571",
+      "source_location": "L1572",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8480,7 +8687,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1574",
+      "source_location": "L1575",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8491,7 +8698,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1580",
+      "source_location": "L1581",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8502,7 +8709,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1627",
+      "source_location": "L1628",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8513,7 +8720,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1681",
+      "source_location": "L1682",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8524,7 +8731,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1812",
+      "source_location": "L1813",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8535,7 +8742,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1825",
+      "source_location": "L1826",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8546,7 +8753,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1960",
+      "source_location": "L1961",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8557,7 +8764,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L1970",
+      "source_location": "L1971",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8568,7 +8775,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2025",
+      "source_location": "L2026",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8579,7 +8786,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2034",
+      "source_location": "L2035",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8590,7 +8797,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2037",
+      "source_location": "L2038",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8601,7 +8808,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2057",
+      "source_location": "L2058",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8612,7 +8819,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2061",
+      "source_location": "L2062",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8623,7 +8830,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2075",
+      "source_location": "L2076",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8634,7 +8841,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2094",
+      "source_location": "L2095",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8645,7 +8852,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2097",
+      "source_location": "L2098",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8656,7 +8863,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2120",
+      "source_location": "L2121",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8667,7 +8874,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2230",
+      "source_location": "L2231",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8678,7 +8885,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2244",
+      "source_location": "L2245",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8689,7 +8896,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2307",
+      "source_location": "L2308",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8700,7 +8907,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2339",
+      "source_location": "L2340",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8711,7 +8918,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2349",
+      "source_location": "L2350",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8722,7 +8929,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2351",
+      "source_location": "L2352",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8733,7 +8940,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2378",
+      "source_location": "L2379",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8744,7 +8951,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2461",
+      "source_location": "L2462",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8755,7 +8962,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2548",
+      "source_location": "L2549",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8766,7 +8973,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2740",
+      "source_location": "L2741",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8777,7 +8984,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2749",
+      "source_location": "L2750",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8788,7 +8995,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2764",
+      "source_location": "L2765",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8799,7 +9006,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2780",
+      "source_location": "L2781",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8810,7 +9017,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L2807",
+      "source_location": "L2808",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8821,7 +9028,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L3107",
+      "source_location": "L3168",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -8832,7 +9039,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/App.tsx",
-      "source_location": "L3110",
+      "source_location": "L3171",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9114,11 +9321,21 @@
     },
     {
       "source": "src_shared",
+      "target": "src_shared_rememberedapproval",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/shared.ts",
+      "source_location": "L159",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "src_shared",
       "target": "src_shared_contextitem",
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/shared.ts",
-      "source_location": "L157",
+      "source_location": "L166",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9128,7 +9345,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/shared.ts",
-      "source_location": "L164",
+      "source_location": "L173",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9138,7 +9355,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/shared.ts",
-      "source_location": "L182",
+      "source_location": "L191",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9148,7 +9365,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/shared.ts",
-      "source_location": "L224",
+      "source_location": "L234",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9158,7 +9375,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/shared.ts",
-      "source_location": "L338",
+      "source_location": "L349",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9168,7 +9385,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/shared.ts",
-      "source_location": "L339",
+      "source_location": "L350",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9178,7 +9395,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src/shared.ts",
-      "source_location": "L340",
+      "source_location": "L351",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9188,7 +9405,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src/shared.ts",
-      "source_location": "L341",
+      "source_location": "L352",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9198,7 +9415,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src/shared.ts",
-      "source_location": "L342",
+      "source_location": "L353",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9208,7 +9425,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src/shared.ts",
-      "source_location": "L343",
+      "source_location": "L354",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9218,7 +9435,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src/shared.ts",
-      "source_location": "L344",
+      "source_location": "L355",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9228,7 +9445,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src/shared.ts",
-      "source_location": "L345",
+      "source_location": "L356",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9238,7 +9455,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src/shared.ts",
-      "source_location": "L346",
+      "source_location": "L357",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9248,7 +9465,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src/shared.ts",
-      "source_location": "L347",
+      "source_location": "L358",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9258,7 +9475,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src/shared.ts",
-      "source_location": "L348",
+      "source_location": "L359",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9268,7 +9485,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/shared.ts",
-      "source_location": "L351",
+      "source_location": "L362",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -9780,7 +9997,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "tests/core.test.ts",
-      "source_location": "L346",
+      "source_location": "L440",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10231,6 +10448,17 @@
       "_origin": "ast"
     },
     {
+      "source": "electron_copilot_worker_main",
+      "target": "electron_core_policy_hash",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/copilot-worker.ts",
+      "source_location": "L436",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
       "source": "electron_core_agents_instructions",
       "target": "electron_core_policy_safepath",
       "relation": "calls",
@@ -10314,7 +10542,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "electron/main.ts",
-      "source_location": "L293",
+      "source_location": "L316",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10347,7 +10575,7 @@
       "context": "field",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L40",
+      "source_location": "L41",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10358,7 +10586,7 @@
       "context": "field",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L41",
+      "source_location": "L42",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10369,7 +10597,7 @@
       "context": "field",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L42",
+      "source_location": "L43",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10380,7 +10608,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L53",
+      "source_location": "L54",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10391,7 +10619,18 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L53",
+      "source_location": "L54",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "electron_core_service_service_rememberedapprovals",
+      "target": "src_shared_rememberedapproval",
+      "relation": "references",
+      "context": "return_type",
+      "confidence": "EXTRACTED",
+      "source_file": "electron/core/service.ts",
+      "source_location": "L98",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10402,7 +10641,7 @@
       "context": "return_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L97",
+      "source_location": "L125",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10413,7 +10652,7 @@
       "context": "return_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L117",
+      "source_location": "L145",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10424,7 +10663,7 @@
       "context": "return_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L140",
+      "source_location": "L169",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10435,7 +10674,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L147",
+      "source_location": "L176",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10446,7 +10685,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L156",
+      "source_location": "L185",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10457,7 +10696,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1047",
+      "source_location": "L1118",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10468,7 +10707,7 @@
       "context": "generic_arg",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1047",
+      "source_location": "L1118",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10479,7 +10718,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1066",
+      "source_location": "L1137",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10490,7 +10729,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1066",
+      "source_location": "L1137",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10501,7 +10740,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1143",
+      "source_location": "L1214",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10512,7 +10751,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1210",
+      "source_location": "L1281",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10523,7 +10762,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1210",
+      "source_location": "L1281",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10534,7 +10773,7 @@
       "context": "return_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1210",
+      "source_location": "L1281",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10545,7 +10784,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1333",
+      "source_location": "L1404",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10556,7 +10795,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1333",
+      "source_location": "L1404",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10567,7 +10806,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1333",
+      "source_location": "L1404",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10578,7 +10817,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1333",
+      "source_location": "L1404",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10589,7 +10828,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1441",
+      "source_location": "L1512",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10600,7 +10839,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1441",
+      "source_location": "L1512",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10611,7 +10850,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1525",
+      "source_location": "L1605",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10622,7 +10861,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "electron/core/service.ts",
-      "source_location": "L1525",
+      "source_location": "L1605",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10706,7 +10945,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L59",
+      "source_location": "L60",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10718,7 +10957,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L85",
+      "source_location": "L86",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10730,7 +10969,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L159",
+      "source_location": "L188",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10742,7 +10981,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L162",
+      "source_location": "L191",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10754,7 +10993,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L178",
+      "source_location": "L207",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10766,7 +11005,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L217",
+      "source_location": "L246",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10778,7 +11017,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L392",
+      "source_location": "L429",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10790,7 +11029,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L427",
+      "source_location": "L464",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10802,7 +11041,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L656",
+      "source_location": "L700",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10814,7 +11053,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L692",
+      "source_location": "L740",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10826,7 +11065,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L834",
+      "source_location": "L905",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10838,7 +11077,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L896",
+      "source_location": "L967",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10850,7 +11089,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L940",
+      "source_location": "L1011",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10862,7 +11101,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L1072",
+      "source_location": "L1143",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10874,7 +11113,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L1076",
+      "source_location": "L1147",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10886,7 +11125,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L1090",
+      "source_location": "L1161",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10898,7 +11137,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L1154",
+      "source_location": "L1225",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10910,7 +11149,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L1168",
+      "source_location": "L1239",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10922,7 +11161,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L1194",
+      "source_location": "L1265",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10934,7 +11173,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L1341",
+      "source_location": "L1412",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10946,7 +11185,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L1347",
+      "source_location": "L1418",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10958,7 +11197,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L1350",
+      "source_location": "L1421",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10970,7 +11209,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L1407",
+      "source_location": "L1478",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10982,7 +11221,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L1468",
+      "source_location": "L1548",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -10994,7 +11233,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L1479",
+      "source_location": "L1559",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -11006,7 +11245,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L1699",
+      "source_location": "L1791",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -11018,7 +11257,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "electron/core/service.ts",
-      "source_location": "L1715",
+      "source_location": "L1811",
       "weight": 1.0,
       "_origin": "ast"
     },
@@ -11030,7 +11269,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/App.tsx",
-      "source_location": "L1845",
+      "source_location": "L1846",
       "weight": 1.0,
       "_origin": "ast"
     },

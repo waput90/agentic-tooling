@@ -875,6 +875,7 @@ export function App() {
           )}
           attempt={data.attempts.find((a) => a.id === detail.id) ?? detail}
           title={attemptTaskTitle(data, detail)}
+          repository={data.workspaces.find((w) => w.id === detail.workspaceId)?.root}
           close={() => setDetail(undefined)}
           send={send}
         />
@@ -2993,9 +2994,9 @@ function Settings({
         <section className="panel">
           <h2>Application preferences</h2>
           <p className="text-xs muted">
-            Automatic approvals are off by default. Enabling either option requires desktop
-            confirmation. Command execution, MCP access, and result integration still ask
-            separately.
+            Automatic approvals are off by default. The dialog can remember an exact request after
+            you approve it. Changed details ask again, and you can remove any remembered request
+            below.
           </p>
           <label className="flex gap-2 items-center text-sm my-4">
             <input
@@ -3063,6 +3064,61 @@ function Settings({
           </Field>
         </section>
         <section className="panel">
+          <h2>Remembered approvals</h2>
+          <p className="text-xs muted">
+            Each entry covers one exact prompt, including its details and workspace when present.
+            Removing it brings the approval dialog back the next time that request appears. The
+            automatic workflow and token settings above are separate switches.
+          </p>
+          {data.rememberedApprovals.length === 0 && (
+            <p className="notice mt-3">No prompts are set to skip confirmation.</p>
+          )}
+          {data.rememberedApprovals.map((entry) => (
+            <div className="row mt-3" key={entry.id}>
+              <div className="flex justify-between items-center gap-3">
+                <div>
+                  <strong>{entry.title}</strong>
+                  <p className="text-xs muted">
+                    {entry.workspaceId
+                      ? (data.workspaces.find((ws) => ws.id === entry.workspaceId)?.name ??
+                        'Former workspace')
+                      : 'Application'}{' '}
+                    · Saved {time(entry.createdAt)} · Scope {entry.scopeHash.slice(0, 12)}
+                  </p>
+                </div>
+                <Button
+                  onClick={() =>
+                    void send(
+                      { type: 'forgetApproval', approvalId: entry.id },
+                      'Approval removed. The dialog will appear next time.',
+                    )
+                  }
+                >
+                  Remove
+                </Button>
+              </div>
+            </div>
+          ))}
+          <details className="mt-4">
+            <summary>All actions that ask for approval</summary>
+            <ul className="text-xs muted mt-2 list-disc pl-5">
+              <li>Approve a workflow execution scope</li>
+              <li>Restart a failed run</li>
+              <li>Continue past a token threshold</li>
+              <li>Run a shell command</li>
+              <li>Use an MCP tool</li>
+              <li>Share MCP tools with workspace agents</li>
+              <li>Test or authenticate an MCP connection</li>
+              <li>Remove an MCP connection</li>
+              <li>Integrate reviewed file changes</li>
+              <li>Delete run, approval, or usage history</li>
+              <li>Prune completed history</li>
+              <li>Enable automatic workflow or token approvals</li>
+              <li>Open browser sign-in, restore a backup, or import definitions</li>
+            </ul>
+          </details>
+        </section>
+        <section className="panel">
           <h2>Automatic desktop updates</h2>
           <Badge>{data.update?.state ?? 'unchecked'}</Badge>
           <p className="text-sm muted">
@@ -3081,18 +3137,23 @@ function Settings({
 function AttemptDetails({
   attempt,
   title,
+  repository,
   close,
   send,
   canDraft,
 }: {
   attempt: Attempt;
   title: string;
+  repository?: string;
   close: () => void;
   send: Send;
   canDraft?: boolean;
 }) {
   const [events, setEvents] = useState<unknown[]>([]),
     [offset, setOffset] = useState(0);
+  const changedFiles = [...(attempt.diff ?? '').matchAll(/^diff --git a\/.+ b\/(.+)$/gm)].map(
+    (match) => match[1],
+  );
   return (
     <div className="modal-backdrop" onClick={close}>
       <section
@@ -3144,8 +3205,33 @@ function AttemptDetails({
         {attempt.diff && (
           <>
             <h3 className="my-4">File diff</h3>
+            <p className="text-xs muted">
+              {changedFiles.length} file(s): {changedFiles.join(', ')}
+            </p>
             <pre className="code">{attempt.diff}</pre>
           </>
+        )}
+        {attempt.state === 'succeeded' && !attempt.diff && (
+          <p className="notice mt-4">
+            This agent finished without changing repository files. There is nothing to integrate.
+            {attempt.integrated &&
+              ' An older version marked this result integrated even though it applied no changes.'}{' '}
+            Check its result above and its task instructions if you expected an edit.
+          </p>
+        )}
+        {attempt.integrated && attempt.diff && (
+          <p className="notice mt-4">
+            Changes were committed to {repository ?? 'the selected repository'}
+            {attempt.integratedCommit ? (
+              <>
+                {' '}
+                as <code>{attempt.integratedCommit}</code>
+              </>
+            ) : (
+              ' (older record: commit ID unavailable)'
+            )}
+            . Git status can be clean because integration creates a commit. No push was performed.
+          </p>
         )}
         <details>
           <summary>Exact context supplied to this attempt</summary>
@@ -3172,11 +3258,10 @@ function AttemptDetails({
           </Button>
           <pre className="code mt-3">{JSON.stringify(events, null, 2)}</pre>
         </details>
-        {attempt.state === 'succeeded' && attempt.commit && (
+        {attempt.state === 'succeeded' && attempt.commit && attempt.diff && !attempt.integrated && (
           <div className="mt-5">
             <Button
               primary
-              disabled={attempt.integrated}
               onClick={() =>
                 void send(
                   { type: 'integrate', workspaceId: attempt.workspaceId, attemptId: attempt.id },
@@ -3184,7 +3269,7 @@ function AttemptDetails({
                 )
               }
             >
-              {attempt.integrated ? 'Integrated' : 'Review and integrate changes'}
+              Review and integrate changes
             </Button>
           </div>
         )}
