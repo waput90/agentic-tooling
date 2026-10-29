@@ -440,21 +440,51 @@ test('saving MCP does not execute a process; bindings cannot cross workspace bou
 });
 
 test('MCP test records verified availability after its connection closes', async () => {
+  const confirmations: string[] = [];
   const service = new Service(
     await temp(),
     () => {},
-    async () => true,
+    async (action, detail) => {
+      if (action === 'confirm') confirmations.push((detail as { title: string }).title);
+      return true;
+    },
     async () => ({
       servers: { servers: [{ name: 'clickup', status: 'connected' }] },
       tools: { tools: [{ name: 'get_task' }, { name: 'list_tasks' }] },
     }),
   );
   try {
+    service.runtime = { state: 'connected', models: [{ id: 'model-a', name: 'A' }] };
+    await service.command({ type: 'saveAgent', agent: { ...custom, id: undefined } });
+    const root = await repo();
+    await mkdir(join(root, '.github/agents'), { recursive: true });
+    await writeFile(
+      join(root, '.github/agents/reviewer.agent.md'),
+      '---\nname: reviewer\nmodel: model-a\n---\nReview requirements',
+    );
+    await git(root, ['add', '.github/agents/reviewer.agent.md']);
+    await git(root, [
+      '-c',
+      'user.name=Test',
+      '-c',
+      'user.email=test@localhost',
+      '-c',
+      'commit.gpgsign=false',
+      'commit',
+      '-m',
+      'Reviewer',
+    ]);
     const workspace = (await service.command({
       type: 'addWorkspace',
-      path: await repo(),
+      path: root,
     })) as Workspace;
     await service.graphify.ensure(workspace.id, workspace.root);
+    await service.command({
+      type: 'workspaceSettings',
+      workspaceId: workspace.id,
+      model: 'model-a',
+      concurrency: 2,
+    });
     const connection = (await service.command({
       type: 'saveMcp',
       workspaceId: workspace.id,
@@ -479,7 +509,53 @@ test('MCP test records verified availability after its connection closes', async
     assert.equal(observed.state, 'stopped');
     assert.equal(observed.lastProbe?.status, 'connected');
     assert.equal(observed.lastProbe?.toolCount, 2);
+    assert.deepEqual(observed.lastProbe?.tools, ['get_task', 'list_tasks']);
     assert.ok(observed.lastProbe?.checkedAt);
+    await assert.rejects(
+      service.command({
+        type: 'saveMcp',
+        workspaceId: workspace.id,
+        server: { ...observed, tools: ['missing_tool'], shareWithWorkspace: true },
+      }),
+      /Only tools found/,
+    );
+    const shared = (await service.command({
+      type: 'saveMcp',
+      workspaceId: workspace.id,
+      server: { ...observed, shareWithWorkspace: true },
+    })) as Mcp;
+    assert.ok(confirmations.includes('Share MCP tools with workspace agents'));
+    const plan = (await service.command({
+      type: 'savePlan',
+      workspaceId: workspace.id,
+      title: 'ClickUp workflow',
+      tasks: [
+        { ...task('review'), role: 'reviewer', source: 'repository' },
+        { ...task('implement', ['review']), role: 'developer', source: 'custom' },
+      ],
+      limits,
+    })) as Plan;
+    assert.deepEqual(
+      plan.tasks.map((step) => step.mcp.map((server) => server.id)),
+      [[shared.id], [shared.id]],
+    );
+    assert.deepEqual(
+      plan.tasks.map((step) => step.agent.mcpIds),
+      [[shared.id], [shared.id]],
+    );
+    const other = (await service.command({
+      type: 'addWorkspace',
+      path: await repo(),
+    })) as Workspace;
+    await service.graphify.ensure(other.id, other.root);
+    const isolated = (await service.command({
+      type: 'savePlan',
+      workspaceId: other.id,
+      title: 'Other workspace',
+      tasks: [task('work')],
+      limits,
+    })) as Plan;
+    assert.deepEqual(isolated.tasks[0].mcp, []);
   } finally {
     await service.command({ type: 'shutdown' });
     service.store.close();

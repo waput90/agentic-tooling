@@ -1067,9 +1067,12 @@ function Agents({ data, workspace, send }: { data: Snapshot; workspace?: Workspa
           </div>
           {workspace && (
             <>
-              <span className="label">MCP bindings for {workspace.name}</span>
+              <span className="label">MCP bindings for this custom agent</span>
+              <p className="text-xs muted">
+                Workspace-shared connections apply to every selected agent automatically.
+              </p>
               {data.mcp
-                .filter((s) => s.workspaceId === workspace.id && s.enabled)
+                .filter((s) => s.workspaceId === workspace.id && s.enabled && !s.shareWithWorkspace)
                 .map((s) => (
                   <label className="flex items-center gap-2 text-xs my-2" key={s.id}>
                     <input
@@ -1601,6 +1604,12 @@ function PlanCard({
             </div>
             <div className="text-xs muted mt-2">
               Tools: {t.agent.tools.join(', ')} · Depends on: {t.dependsOn.join(', ') || 'none'}
+            </div>
+            <div className="text-xs muted mt-1">
+              MCP access:{' '}
+              {t.mcp.length
+                ? t.mcp.map((server) => `${server.name} (${server.tools.join(', ')})`).join('; ')
+                : 'none'}
             </div>
             <div className="text-xs muted mt-1 break-all">
               Source: {t.agent.sourcePath} · {t.agent.hash.slice(0, 12)}
@@ -2282,11 +2291,17 @@ function Connections({
     auth: 'none' as Mcp['auth'],
     secretName: 'Authorization',
     enabled: false,
+    shareWithWorkspace: false,
   };
   const [form, setForm] = useState<Partial<Mcp>>(initial),
     [args, setArgs] = useState('[]'),
+    [argsError, setArgsError] = useState(''),
     [secret, setSecret] = useState(''),
     [tools, setTools] = useState('');
+  const observedTools = form.id
+    ? (data.mcp.find((server) => server.id === form.id && server.workspaceId === workspace.id)
+        ?.lastProbe?.tools ?? [])
+    : [];
   return (
     <>
       <McpDirectory
@@ -2311,8 +2326,9 @@ function Connections({
         <section className="panel">
           <h2>Workspace connections</h2>
           <p className="text-xs muted">
-            Saving never launches a server. Test or authenticate explicitly, then enable and bind
-            tools to an agent.
+            Saving never launches a server. Test or authenticate, choose the allowed tools, then
+            enable it. Share those tools with all agents in this workspace, or bind the connection
+            to specific custom agents.
           </p>
           {data.mcp
             .filter((m) => m.workspaceId === workspace.id)
@@ -2341,6 +2357,13 @@ function Connections({
                 )}
                 <p className="text-xs muted break-all">
                   {m.transport} · {m.endpoint}
+                </p>
+                <p className="text-xs muted mt-1">
+                  {m.shareWithWorkspace
+                    ? 'Shared with all workspace agents'
+                    : 'Custom-agent bindings only'}
+                  {' · '}
+                  {m.tools.length} allowed tool{m.tools.length === 1 ? '' : 's'}
                 </p>
                 {m.auth === 'oauth' &&
                   m.endpoint.replace(/\/$/, '') === 'https://mcp.figma.com/mcp' && (
@@ -2486,9 +2509,10 @@ function Connections({
                 if (!Array.isArray(parsed) || parsed.some((x) => typeof x !== 'string'))
                   throw new Error();
               } catch {
-                window.alert('Arguments must be a JSON array of strings.');
+                setArgsError('Arguments must be a JSON array of strings.');
                 return;
               }
+              setArgsError('');
               void send(
                 {
                   type: 'saveMcp',
@@ -2506,6 +2530,7 @@ function Connections({
                 authenticate ? undefined : 'Connection saved without launching.',
               ).then((saved) => {
                 if (!saved) return;
+                setForm(saved as Mcp);
                 setSecret('');
                 if (authenticate)
                   return send(
@@ -2554,10 +2579,18 @@ function Connections({
                 <textarea
                   rows={2}
                   value={args}
-                  onChange={(e) => setArgs(e.target.value)}
+                  onChange={(e) => {
+                    setArgs(e.target.value);
+                    setArgsError('');
+                  }}
                   placeholder={'["C:/tools/server.js"]'}
                 />
               </Field>
+            )}
+            {argsError && (
+              <p className="notice error" role="alert">
+                {argsError}
+              </p>
             )}
             <Field label="Authentication">
               <select
@@ -2594,14 +2627,36 @@ function Connections({
             <Field label="Allowed tools (comma separated, empty grants none)">
               <input value={tools} onChange={(e) => setTools(e.target.value)} />
             </Field>
+            {observedTools.length > 0 && (
+              <div className="text-xs muted mt-2">
+                <div>Found in the last successful test: {observedTools.join(', ')}</div>
+                <Button onClick={() => setTools(observedTools.join(', '))}>
+                  Allow all {observedTools.length} detected tools
+                </Button>
+              </div>
+            )}
             <label className="flex gap-2 items-center text-xs my-4">
               <input
                 type="checkbox"
                 checked={form.enabled}
                 onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
               />
-              Enable for explicit agent bindings
+              Enable connection
             </label>
+            <label className="flex gap-2 items-center text-xs my-4">
+              <input
+                type="checkbox"
+                checked={Boolean(form.shareWithWorkspace)}
+                disabled={!form.shareWithWorkspace && observedTools.length === 0}
+                onChange={(e) => setForm({ ...form, shareWithWorkspace: e.target.checked })}
+              />
+              Share selected tools with all agents in this workspace
+            </label>
+            <p className="text-xs muted">
+              Test this connection first to enable sharing. Repository agents cannot use custom
+              agent bindings, but they can use workspace-shared tools in new approved workflows.
+              Create a fresh workflow after changing connection access.
+            </p>
             <div className="toolbar">
               <button className="btn primary">Save connection</button>
               {form.auth === 'oauth' && (
@@ -2938,7 +2993,7 @@ function Settings({
         <section className="panel">
           <h2>Application preferences</h2>
           <p className="text-xs muted">
-            Automatic approvals are off by default. Enabling either option requires native
+            Automatic approvals are off by default. Enabling either option requires desktop
             confirmation. Command execution, MCP access, and result integration still ask
             separately.
           </p>

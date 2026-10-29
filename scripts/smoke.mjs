@@ -28,6 +28,31 @@ try {
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('heading', { name: 'GitHub Copilot', exact: true }).waitFor();
   await page.getByRole('heading', { name: 'Headroom context compression', exact: true }).waitFor();
+  const cancelDialog = app.waitForEvent('window');
+  await page.getByLabel('Automatically approve verified workflow plans').click();
+  const cancelled = await cancelDialog;
+  await cancelled.getByRole('heading', { name: 'Enable automatic approvals' }).waitFor();
+  assert.equal(await cancelled.evaluate(() => document.activeElement?.id), 'cancel');
+  await cancelled.getByRole('button', { name: 'Cancel', exact: true }).click();
+  assert.equal(
+    (await page.evaluate(() => window.desktop.request({ type: 'snapshot' }))).settings
+      .autoApprovePlans,
+    false,
+  );
+  const approveDialog = app.waitForEvent('window');
+  await page.getByLabel('Automatically approve verified workflow plans').click();
+  const approved = await approveDialog;
+  await approved.getByRole('heading', { name: 'Enable automatic approvals' }).waitFor();
+  await mkdir('test-results', { recursive: true });
+  await approved.screenshot({ path: 'test-results/confirmation.png' });
+  await approved.getByRole('button', { name: 'Approve' }).click();
+  await page.waitForFunction(
+    async () => (await window.desktop.request({ type: 'snapshot' })).settings.autoApprovePlans,
+  );
+  await page.evaluate(async () => {
+    const settings = (await window.desktop.request({ type: 'snapshot' })).settings;
+    await window.desktop.request({ type: 'settings', ...settings, autoApprovePlans: false });
+  });
   assert.equal(await page.getByLabel('Enable Headroom for new plans').isChecked(), false);
   const headroomFixture = createServer(async (req, res) => {
     let text = '';
@@ -101,7 +126,7 @@ try {
   await mkdir('test-results', { recursive: true });
   await page.screenshot({ path: 'test-results/desktop.png', fullPage: true });
   console.log(
-    'Electron smoke passed: renderer bridge, SQLite, navigation, theme, ownership gate, screenshot.',
+    'Electron smoke passed: renderer bridge, confirmation dialog, SQLite, navigation, theme, ownership gate, screenshot.',
   );
 } finally {
   await app.close();

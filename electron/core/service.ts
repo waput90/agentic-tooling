@@ -764,6 +764,18 @@ export class Service {
         const old = c.server.id
           ? this.store.get<Mcp>('mcp', c.server.id, c.workspaceId)
           : undefined;
+        const connectionFields = (server: typeof c.server) => ({
+          name: server.name,
+          transport: server.transport,
+          endpoint: server.endpoint,
+          args: server.args,
+          auth: server.auth,
+          secretName: server.secretName,
+        });
+        const changedConnection =
+          !old ||
+          hash(connectionFields(old)) !== hash(connectionFields(c.server)) ||
+          Boolean(c.secret);
         if (c.server.transport !== 'stdio') {
           const url = new URL(c.server.endpoint);
           if (url.username || url.password || url.search)
@@ -780,12 +792,34 @@ export class Service {
         }
         if (c.server.tools.includes('*'))
           throw new Error('Select individual MCP tools; wildcard grants are unsupported');
+        if (c.server.shareWithWorkspace) {
+          if (!c.server.enabled || !c.server.tools.length)
+            throw new Error(
+              'Enable this connection and select its allowed tools before sharing it.',
+            );
+          if (changedConnection || old?.lastProbe?.status !== 'connected' || !old.lastProbe.tools)
+            throw new Error(
+              'Test this exact connection before sharing tools with workspace agents.',
+            );
+          if (c.server.tools.some((tool) => !old.lastProbe!.tools!.includes(tool)))
+            throw new Error('Only tools found in the last successful test can be shared.');
+          if (
+            (!old.shareWithWorkspace || c.server.tools.some((tool) => !old.tools.includes(tool))) &&
+            !(await this.host('confirm', {
+              title: 'Share MCP tools with workspace agents',
+              detail: `Workspace: ${this.ws(c.workspaceId).root}\nConnection: ${c.server.name}\nTools: ${c.server.tools.join(', ')}\n\nEvery agent selected for a new workflow in this workspace, including repository agents, can request these tools. Each MCP tool call still requires separate approval. Existing approvals are invalidated.`,
+            }))
+          )
+            throw new Error('Workspace MCP sharing cancelled.');
+        }
         const server: Mcp = {
           ...c.server,
           id: old?.id ?? randomUUID(),
           version: (old?.version ?? 0) + 1,
           secretRef: old?.secretRef,
           state: 'configured',
+          shareWithWorkspace: c.server.shareWithWorkspace ?? false,
+          lastProbe: changedConnection ? undefined : old?.lastProbe,
         };
         if (c.secret) {
           server.secretRef = server.id;
@@ -1010,6 +1044,25 @@ export class Service {
       if (p.state === 'approved')
         this.store.put('plans', p.id, { ...p, state: 'stale' }, workspaceId);
   }
+  private agentConnections(ws: Workspace, agent: Awaited<ReturnType<typeof resolveAgent>>) {
+    const shared = this.store
+      .list<Mcp>('mcp', ws.id)
+      .filter((server) => server.enabled && server.shareWithWorkspace);
+    for (const server of shared)
+      if (
+        !server.tools.length ||
+        server.lastProbe?.status !== 'connected' ||
+        server.tools.some((tool) => !server.lastProbe?.tools?.includes(tool))
+      )
+        throw new Error(
+          `${server.name} workspace sharing needs a successful test of its selected tools.`,
+        );
+    const mcpIds = [...new Set([...agent.mcpIds, ...shared.map((server) => server.id)])];
+    const mcp = mcpIds.map((id) => this.store.get<Mcp>('mcp', id, ws.id));
+    if (mcp.some((server) => !server.enabled))
+      throw new Error('Agent binds a disabled MCP connection');
+    return { agent: { ...agent, mcpIds }, mcp };
+  }
   private async makePlan(
     workspaceId: string,
     title: string,
@@ -1020,15 +1073,14 @@ export class Service {
     const ws = this.ws(workspaceId);
     const resolved = [];
     for (const task of tasks) {
-      const agent = await resolveAgent(
+      const resolvedAgent = await resolveAgent(
         ws,
         task.role,
         this.store.list('agents'),
         this.runtime.models.map((m) => m.id),
         task.source,
       );
-      const mcp = agent.mcpIds.map((id) => this.store.get<Mcp>('mcp', id, workspaceId));
-      if (mcp.some((s) => !s.enabled)) throw new Error('Agent binds a disabled MCP connection');
+      const { agent, mcp } = this.agentConnections(ws, resolvedAgent);
       resolved.push({ ...task, agent, mcp });
     }
     const payload = {
@@ -1099,14 +1151,14 @@ export class Service {
         ws = this.ws(plan.workspaceId);
       const tasks = [];
       for (const task of plan.tasks) {
-        const agent = await resolveAgent(
+        const resolvedAgent = await resolveAgent(
           ws,
           task.role,
           this.store.list('agents'),
           this.runtime.models.map((m) => m.id),
           task.source,
         );
-        const mcp = agent.mcpIds.map((id) => this.store.get<Mcp>('mcp', id, ws.id));
+        const { agent, mcp } = this.agentConnections(ws, resolvedAgent);
         tasks.push({ ...task, agent, mcp });
       }
       const scope = {
@@ -1510,6 +1562,12 @@ export class Service {
       if (server.enabled) return server;
       if (['bearer', 'api-key'].includes(server.auth) && !server.secretRef)
         throw new Error('Add the connection secret before enabling it.');
+      if (
+        server.shareWithWorkspace &&
+        (server.lastProbe?.status !== 'connected' ||
+          server.tools.some((tool) => !server.lastProbe?.tools?.includes(tool)))
+      )
+        throw new Error('Test and review shared tools before re-enabling this connection.');
       server.enabled = true;
       server.state = 'configured';
       server.version++;
@@ -1603,6 +1661,16 @@ export class Service {
         status: 'connected',
         checkedAt: new Date().toISOString(),
         toolCount: Array.isArray(observed.tools?.tools) ? observed.tools.tools.length : undefined,
+        tools: Array.isArray(observed.tools?.tools)
+          ? [
+              ...new Set(
+                observed.tools.tools.flatMap((tool) => {
+                  const name = (tool as { name?: unknown })?.name;
+                  return typeof name === 'string' && name.length <= 200 ? [name] : [];
+                }),
+              ),
+            ]
+          : [],
       };
       server.diagnostic =
         JSON.stringify(result, null, 2) +

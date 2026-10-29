@@ -50,6 +50,7 @@ export const mcpSchema = z.object({
   auth: z.enum(['none', 'bearer', 'api-key', 'oauth']),
   secretName: z.string().max(100).default('Authorization'),
   enabled: z.boolean().default(false),
+  shareWithWorkspace: z.boolean().optional(),
 });
 export type Mcp = z.infer<typeof mcpSchema> & {
   id: string;
@@ -57,7 +58,12 @@ export type Mcp = z.infer<typeof mcpSchema> & {
   secretRef?: string;
   state: string;
   diagnostic?: string;
-  lastProbe?: { status: 'connected' | 'failed'; checkedAt: string; toolCount?: number };
+  lastProbe?: {
+    status: 'connected' | 'failed';
+    checkedAt: string;
+    toolCount?: number;
+    tools?: string[];
+  };
 };
 export type McpDirectoryEntry = {
   name: string;

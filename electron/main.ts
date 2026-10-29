@@ -38,20 +38,62 @@ const changed = () => {
 async function confirm(title: string, detail: string) {
   pendingDialogs++;
   try {
-    return (
-      (
-        await dialog.showMessageBox(window, {
-          type: 'question',
+    return await new Promise<boolean>((resolve) => {
+      const modal = new BrowserWindow({
+        parent: window,
+        modal: true,
+        width: 620,
+        height: 440,
+        minWidth: 520,
+        minHeight: 380,
+        resizable: false,
+        frame: false,
+        show: false,
+        backgroundColor: '#101215',
+        webPreferences: {
+          preload: fileURLToPath(new URL('./confirmation-preload.cjs', import.meta.url)),
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+          webSecurity: true,
+        },
+      });
+      let settled = false;
+      const finish = (approved: boolean) => {
+        if (settled) return;
+        settled = true;
+        ipcMain.removeListener('confirmation-choice', onChoice);
+        if (!modal.isDestroyed()) modal.close();
+        resolve(approved);
+      };
+      const onChoice = (event: Electron.IpcMainEvent, choice: unknown) => {
+        if (event.sender !== modal.webContents || event.senderFrame !== modal.webContents.mainFrame)
+          return;
+        if (choice === 'approve' || choice === 'cancel') finish(choice === 'approve');
+      };
+      ipcMain.on('confirmation-choice', onChoice);
+      modal.on('closed', () => finish(false));
+      modal.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+      modal.webContents.on('will-navigate', (event) => event.preventDefault());
+      modal.webContents.on('did-finish-load', () => {
+        const destructive = /delete|discard|remove|clear|restore/i.test(title);
+        modal.webContents.send('confirmation-data', {
           title,
-          message: title,
           detail,
-          buttons: ['Cancel', 'Approve'],
-          defaultId: 0,
-          cancelId: 0,
-          noLink: true,
-        })
-      ).response === 1
-    );
+          actionLabel: destructive
+            ? 'Confirm action'
+            : /approv/i.test(title)
+              ? 'Approve'
+              : 'Continue',
+          destructive,
+        });
+        modal.show();
+        modal.focus();
+      });
+      void modal
+        .loadFile(fileURLToPath(new URL('./confirmation.html', import.meta.url)))
+        .catch(() => finish(false));
+    });
   } finally {
     pendingDialogs--;
   }

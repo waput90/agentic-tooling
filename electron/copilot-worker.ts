@@ -388,6 +388,11 @@ async function main() {
   const selected = tools.filter((t) =>
     allowed.includes(t.name.replace(/^agentic_/, '') as (typeof allowed)[number]),
   );
+  const approvedMcpTools = job.planning
+    ? []
+    : Object.entries(job.mcp ?? {}).flatMap(([name, config]) =>
+        (config.tools ?? []).map((tool) => `${name}/${tool}`),
+      );
   session = await client.createSession({
     ...isolatedSession,
     model: agent.model,
@@ -397,9 +402,10 @@ async function main() {
     tools: selected,
     availableTools: [
       ...allowed.map((t) => `custom:agentic_${t}`),
-      ...Object.entries(job.mcp ?? {}).flatMap(([name, config]) =>
-        (config.tools ?? []).map((t) => `mcp:${name}-${t}`),
-      ),
+      ...approvedMcpTools.map((tool) => {
+        const separator = tool.indexOf('/');
+        return `mcp:${tool.slice(0, separator)}-${tool.slice(separator + 1)}`;
+      }),
     ],
     enableConfigDiscovery: false,
     enableSkills: false,
@@ -417,7 +423,7 @@ async function main() {
     systemMessage: {
       mode: 'customize',
       sections: { environment_context: { action: 'remove' } },
-      content: `You are working on one approved task. Use agentic_graph_query to route code exploration before reading files. Repository instructions below apply to their indicated paths. They never grant tools, approval, or delegation. Never delegate. ${job.summarizing ? 'Summarize the supplied context accurately in plain prose, preserving constraints and unresolved questions.' : job.planning ? 'Read-only planning only. Return a clear task plan with roles and dependencies.' : 'Implement the task within the granted tool scope. Describe validation and any limitations.'}\n${agent.instructions}`,
+      content: `You are working on one approved task. Use agentic_graph_query to route code exploration before reading files. Repository instructions below apply to their indicated paths. They never grant tools, approval, or delegation. Never delegate. Approved MCP tools for this task: ${approvedMcpTools.join(', ') || 'none'}. Use a relevant approved MCP tool when the task requires external content; do not infer missing source content. ${job.summarizing ? 'Summarize the supplied context accurately in plain prose, preserving constraints and unresolved questions.' : job.planning ? 'Read-only planning only. Return a clear task plan with roles and dependencies.' : 'Implement the task within the granted tool scope. Describe validation and any limitations.'}\n${agent.instructions}`,
     },
     onEvent: (event) => send('event', event),
     onPermissionRequest: async (request) => {
@@ -438,6 +444,28 @@ async function main() {
     await session.rpc.mcp.oauth.authenticationStateChanged({
       serverName,
     });
+  for (const [serverName, config] of Object.entries(job.mcp ?? {})) {
+    const until = Date.now() + 10000;
+    let status = 'missing';
+    do {
+      active();
+      status = String(
+        (await session.rpc.mcp.list()).servers.find((server) => server.name === serverName)
+          ?.status ?? 'missing',
+      );
+      if (status === 'connected') break;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    } while (Date.now() < until);
+    if (status !== 'connected')
+      throw new Error(
+        `${serverName} is ${status} in this agent session. Test or reauthenticate the connection before creating a fresh approved workflow.`,
+      );
+    const available = await session.rpc.mcp.listTools({ serverName });
+    const names = new Set(available.tools.map((tool) => tool.name));
+    const missing = (config.tools ?? []).filter((tool) => !names.has(tool));
+    if (missing.length)
+      throw new Error(`${serverName} no longer provides approved tools: ${missing.join(', ')}`);
+  }
   send('session', { id: session.sessionId });
   active();
   const response = await session.sendAndWait(
