@@ -25,7 +25,14 @@ try {
   assert.equal(await page.evaluate(() => typeof window.require), 'undefined');
   const snapshot = await page.evaluate(() => window.desktop.request({ type: 'snapshot' }));
   assert.deepEqual(snapshot.workspaces, []);
+  // Exercise navigation at the minimum supported window size, as on CI runners.
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0].setSize(1000, 650);
+  });
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0].setSize(1450, 960);
+  });
   await page.getByRole('heading', { name: 'GitHub Copilot', exact: true }).waitFor();
   await page.getByRole('heading', { name: 'Headroom context compression', exact: true }).waitFor();
   const cancelDialog = app.waitForEvent('window');

@@ -82,6 +82,7 @@ select option {
   position: fixed;
   inset: 0 auto 0 0;
   width: 245px;
+  overflow-y: auto;
   background: var(--panel);
   display: flex;
   flex-direction: column;
